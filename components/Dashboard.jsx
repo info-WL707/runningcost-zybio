@@ -260,6 +260,7 @@ function initHSet() {
     Z3:      { price: 115e6,     disc: 0,  kso: 60, markup: 20, tests: 500  },
     Z52:     { price: 190e6,     disc: 0,  kso: 60, markup: 20, tests: 750  },
     Z50:     { price: 210e6,     disc: 0,  kso: 60, markup: 20, tests: 750  },
+    EXZ8000: { price: 500e6,     disc: 0,  kso: 60, markup: 20, tests: 2000 },
     EXZ6000: { price: 365e6,     disc: 0,  kso: 60, markup: 20, tests: 1500 },
   };
 }
@@ -274,6 +275,11 @@ function initHRp() {
     Z3:      { lyse: {price:1550000,disc:0}, dil: {price:1550000,disc:0}, probe: {price:400000,disc:0} },
     Z52:     { dn: {price:2000000,disc:0}, ld: {price:2500000,disc:0}, lb: {price:2000000,disc:0}, probe: {price:400000,disc:0} },
     Z50:     { dn: {price:2000000,disc:0}, ld: {price:2500000,disc:0}, lb: {price:2000000,disc:0}, probe: {price:400000,disc:0} },
+    EXZ8000: {
+      dn:    {price:1870000, disc:0}, ld:    {price:11787000,disc:0}, ln:    {price:11787000,disc:0},
+      fd:    {price:8840000, disc:0}, fn:    {price:2550000, disc:0}, ls:    {price:3684000, disc:0},
+      dr:    {price:2947000, disc:0}, fr:    {price:9577000, disc:0}, probe: {price:800000,  disc:0},
+    },
     EXZ6000: { dn: {price:2000000,disc:0}, ldi: {price:2600000,disc:0}, ldii: {price:3250000,disc:0}, lb: {price:2250000,disc:0}, probe: {price:400000,disc:0} },
   };
 }
