@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEMATO, CC, CC_P } from '../lib/data';
+import { HEMATO, CC, CC_P, CC_PANELS } from '../lib/data';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -17,17 +17,41 @@ function rp(n) {
 function initFmt(v) {
   return v > 0 ? Math.round(v).toLocaleString('id-ID') : '0';
 }
-const nettOf = (obj) => obj.price * (1 - obj.disc / 100);
-const sellOf = (base, markup) => markup < 100 ? base / (1 - markup / 100) : 0;
+const nettOf   = (obj) => obj.price * (1 - obj.disc / 100);
+const sellOf   = (base, markup) => markup < 100 ? base / (1 - markup / 100) : 0;
+
+// ─── Analyzer dot colors ──────────────────────────────────────────────────────
+
+const H_COLORS = {
+  Z3:      '#10B981',
+  Z52:     '#3B82F6',
+  Z50:     '#6366F1',
+  EXZ8000: '#8B5CF6',
+  EXZ6000: '#F59E0B',
+};
+const C_COLORS = {
+  EXC200: '#06B6D4',
+  EXC400: '#EC4899',
+};
+const CAT_COLORS = {
+  hemato: '#3B82F6',
+  cc:     '#10B981',
+};
+const PAN_CLS = {
+  Hepatic:    'bh',
+  Renal:      'br',
+  Lipid:      'bl',
+  Metabolic:  'bm',
+  Control:    'bctrl',
+  Consumable: 'bcons',
+};
 
 // ─── NumInput ─────────────────────────────────────────────────────────────────
 
 function NumInput({ value, onChange, prefix, suffix }) {
   const [text, setText] = useState(() => initFmt(value));
   const editing = useRef(false);
-
   useEffect(() => { if (!editing.current) setText(initFmt(value)); }, [value]);
-
   return (
     <div className="field-row">
       {prefix && <span className="pfx">{prefix}</span>}
@@ -45,17 +69,17 @@ function NumInput({ value, onChange, prefix, suffix }) {
   );
 }
 
-// ─── CCNumInput (inline table cell) ──────────────────────────────────────────
+// ─── SmallNumInput — inline editable number (price / disc in parameter table) ─
 
-function CCNumInput({ value, onChange, small = false }) {
+function SmallNumInput({ value, onChange, tiny }) {
   const [text, setText] = useState(() => initFmt(value));
   const editing = useRef(false);
-
   useEffect(() => { if (!editing.current) setText(initFmt(value)); }, [value]);
-
   return (
     <input
-      type="text" value={text} className={small ? 'di' : 'pi'} inputMode="numeric"
+      type="text" value={text}
+      className={tiny ? 'di' : 'pi'}
+      inputMode="numeric"
       onFocus={() => { editing.current = true; }}
       onChange={e => { setText(e.target.value); onChange(parseIDR(e.target.value)); }}
       onBlur={() => {
@@ -66,188 +90,593 @@ function CCNumInput({ value, onChange, small = false }) {
   );
 }
 
-// ─── HematoTable ─────────────────────────────────────────────────────────────
+// ─── MerkPill ─────────────────────────────────────────────────────────────────
 
-function HematoTable({ data, hRes, capPt, markup, D }) {
-  const isPb     = data.label === 'Z52' || data.label === 'Z50';
-  const colCount = isPb ? 5 : 4;
+function MerkPill({ label, color, active, onClick, sub }) {
+  return (
+    <button
+      className={`merk-pill${active ? ' merk-active' : ''}`}
+      style={active ? { borderColor: color, color } : {}}
+      onClick={onClick}
+    >
+      <span className="merk-dot" style={{ background: color }} />
+      {label}
+      {sub && <span className="merk-sub">{sub}</span>}
+    </button>
+  );
+}
 
-  const rows = data.reagents.map(r => {
-    const pr  = hRes ? hRes.pr[r.id] : null;
-    const cyc = pr ? pr.c : 0;
-    const fix = pr ? pr.f : 0;
-    const pb  = isPb && r.id === 'probe' && hRes ? (hRes.pb || 0) : 0;
-    return { ...r, cyc, fix, pb, tot: cyc + fix + pb };
+// ─── HematoResult (Page 2) ────────────────────────────────────────────────────
+
+function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl }) {
+  const rows0 = data.reagents.map(r => {
+    const obj         = hRpData[r.id] || { price: 0, disc: 0 };
+    const nettKit     = obj.price * (1 - obj.disc / 100);
+    const pr          = hRes ? hRes.pr[r.id] : null;
+    const cyc         = pr ? pr.c : 0;
+    const fix         = pr ? pr.f : 0;
+    const contribTest = cyc + fix;
+    return { ...r, obj, nettKit, contribTest };
   });
 
-  const totR = rows.reduce((s, r) => s + r.tot, 0);
-  const base = capPt + totR;
-  const sell = sellOf(base, markup);
+  const totR = rows0.reduce((s, r) => s + r.contribTest, 0);
+  const base = capPt + totR + (ctrl || 0);
+  const sell       = sellOf(base, markup);
+
+  // sellKit distributes the full sell price (including CAPEX) proportionally
+  // so that Σ(sellKit_i / effectiveTestsPerKit_i) = sell (total cost/test)
+  const rows = rows0.map(r => ({
+    ...r,
+    sellKit: markup < 100 && totR > 0
+      ? sell * r.nettKit / totR
+      : (markup < 100 ? r.nettKit / (1 - markup / 100) : 0),
+  }));
+  const markup_amt = sell - base;
 
   return (
-    <div className="tbl-section">
-      <div className="tbl-hbar">
-        <span className="tbl-title">Rincian Reagen — {data.label} ({data.diff})</span>
-        <span className="tbl-note">
-          {D > 0 ? `${fmt(D)} test/hari · startup+shutdown dialokasikan per test` : 'isi parameter KSO di sidebar'}
-        </span>
+    <div className="page2-wrap">
+      <div className="cprr-hero">
+        <div className="cprr-label">COST / TEST — KSO CPRR</div>
+        <div className="cprr-sub">
+          {data.label} {data.diff}{modeLabel ? ` · ${modeLabel}` : ''}
+          &nbsp;·&nbsp;{totTest > 0 ? `${fmt(totTest)} test · ${kso} bulan` : '—'}
+          {D > 0 ? ` · ${fmt(D)} test/hari` : ''}
+        </div>
+        <div className="cprr-val">{hRes ? rp(sell) : '—'}</div>
+        <div className="cprr-pills">
+          <span className="pill pl-cap">CAPEX/Test: {rp(capPt)}</span>
+          <span className="pill pl-rgn">Reagen/Test: {hRes ? rp(totR) : '—'}</span>
+          {ctrl > 0 && <span className="pill pl-qc">QC/Test: {rp(ctrl)}</span>}
+          <span className="pill pl-base">Base Cost: {rp(base)}</span>
+          <span className="pill pl-mkp">Markup {markup}%: {hRes ? rp(markup_amt) : '—'}</span>
+        </div>
       </div>
-      <div className="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Reagen</th>
-              <th>Pack</th>
-              <th className="r">Siklus/Test</th>
-              <th className="r">Tetap/Test</th>
-              {isPb && <th className="r">Berkala/Test</th>}
-              <th className="r">Total/Test</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.id}>
-                <td style={{ fontWeight: 600 }}>{r.fn}</td>
-                <td style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
-                <td className="r">{hRes ? fmt(r.cyc) : '—'}</td>
-                <td className="r">{hRes ? fmt(r.fix) : '—'}</td>
-                {isPb && <td className="r">{r.id === 'probe' && hRes ? fmt(r.pb) : '—'}</td>}
-                <td className="cpt">{hRes ? fmt(r.tot) : '—'}</td>
+
+      <div className="tbl-section">
+        <div className="tbl-hbar">
+          <span className="tbl-title">
+            Rincian Reagen — {data.label} ({data.diff}){modeLabel ? ` · ${modeLabel}` : ''}
+          </span>
+          <span className="tbl-note">
+            {D > 0 ? 'Kontrib/Test rekonsiliasi ke Cost/Test KSO CPRR · Harga Jual/Kit = nett ÷ (1−markup)' : 'Lengkapi input di halaman sebelumnya'}
+          </span>
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama Barang</th>
+                <th>Kemasan</th>
+                <th className="r">Kontrib/Test</th>
+                <th className="r th-sell">Harga Jual/Kit</th>
               </tr>
-            ))}
-            <tr className="tr-sub">
-              <td colSpan={colCount}>Total Biaya Reagen / Test</td>
-              <td className="cpt">{hRes ? fmt(totR) : '—'}</td>
-            </tr>
-            <tr className="tr-capex">
-              <td colSpan={colCount} style={{ color: 'var(--red)' }}>+ CAPEX / Test</td>
-              <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(capPt)}</td>
-            </tr>
-            <tr className="tr-sell">
-              <td colSpan={colCount}>Harga Jual / Test — margin {markup}%</td>
-              <td className="cpt">{hRes ? rp(sell) : '—'}</td>
-            </tr>
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 600 }}>{r.fn}</td>
+                  <td style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
+                  <td className="cpt">{hRes ? fmt(r.contribTest) : '—'}</td>
+                  <td className="r td-sell">{hRes ? rp(r.sellKit) : '—'}</td>
+                </tr>
+              ))}
+              {ctrl > 0 && (
+                <tr className="tr-ctrl">
+                  <td colSpan={2}>QC Control + Kalibrasi / Test</td>
+                  <td className="cpt">{fmt(ctrl)}</td>
+                  <td style={{ background: '#FFFBEB' }}>—</td>
+                </tr>
+              )}
+              <tr className="tr-sub">
+                <td colSpan={2}>Total Biaya Reagen / Test</td>
+                <td className="cpt">{hRes ? fmt(totR) : '—'}</td>
+                <td style={{ background: '#F1F5F9' }}></td>
+              </tr>
+              <tr className="tr-capex">
+                <td colSpan={2} style={{ color: 'var(--red)' }}>
+                  + CAPEX / Test&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
+                    (Alat + UPS + LIS ÷ {fmt(totTest)} test KSO)
+                  </span>
+                </td>
+                <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(capPt)}</td>
+                <td style={{ background: '#FFF5F5' }}></td>
+              </tr>
+              <tr className="tr-base">
+                <td colSpan={2}>Base Cost / Test (sebelum markup)</td>
+                <td className="cpt">{hRes ? rp(base) : '—'}</td>
+                <td style={{ background: '#F8FAFC' }}></td>
+              </tr>
+              <tr className="tr-sell tr-sell-big">
+                <td colSpan={2}>
+                  Cost / Test KSO CPRR&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11 }}>margin {markup}%</span>
+                </td>
+                <td className="cpt" style={{ fontSize: 16, fontWeight: 900, color: 'var(--blue)' }}>
+                  {hRes ? rp(sell) : '—'}
+                </td>
+                <td style={{ background: 'var(--blue2)' }}></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── CCTable ──────────────────────────────────────────────────────────────────
+// ─── CCResultTable ────────────────────────────────────────────────────────────
 
-const PAN_CLS = { Hepatic: 'bh', Renal: 'br', Lipid: 'bl', Diabetes: 'bd' };
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }) {
+  // Split: free controls (overhead) vs display params
+  const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
+  const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
+  const freeCtrlVials  = freeControls.filter(p => p.id !== 'cc_cal');
+  const displayParams  = params.filter(p => !(p.panel === 'Control' && p.free));
 
-function CCTable({ data, ccPar, updCCPar, detRes, capPt, markup, consObjs }) {
-  const detTotal = detRes ? detRes.total : 0;
+  // Beban Consumable/test shared across all parameters
+  const consumablePerTest = params
+    .filter(p => p.panel === 'Consumable')
+    .reduce((s, p) => {
+      const nett = p.price * (1 - p.disc / 100);
+      return s + (p.testsPerKit > 0 ? nett / p.testsPerKit : 0);
+    }, 0);
+
+  // Active reagent params for QC calculation (first n_param, non-control/consumable)
+  const reagentParams = params.filter(p => p.panel !== 'Control' && p.panel !== 'Consumable');
+  const n = Math.min(ccQC.n_param || 0, reagentParams.length);
+  const activeParams  = reagentParams.slice(0, n);
+  const baseCostSum   = activeParams.reduce((s, p) => {
+    const nett = p.price * (1 - p.disc / 100);
+    return s + (p.testsPerKit > 0 ? nett / p.testsPerKit : 0);
+  }, 0);
+
+  // QC Control overhead (per 25-day period → per patient test)
+  const pt25         = D * 25;
+  const freeCtrlNett = freeCtrlVials.reduce((s, p) => s + p.price * (1 - p.disc / 100), 0);
+  const qcReagent    = baseCostSum * 25;
+  const qcOverhead   = pt25 > 0 ? (qcReagent + freeCtrlNett) / pt25 : 0;
+
+  // Calibrator overhead (per month)
+  const calPerRun    = freeCalibrator
+    ? (freeCalibrator.price * (1 - freeCalibrator.disc / 100)) / Math.max(freeCalibrator.testsPerKit, 1)
+    : 0;
+  const calReagent   = baseCostSum * (ccQC.n_cal || 0);
+  const calKitCost   = calPerRun * (ccQC.n_cal || 0);
+  const calOverhead  = testsPerMonth > 0 ? (calReagent + calKitCost) / testsPerMonth : 0;
+
+  const hasOverhead  = freeControls.length > 0 && D > 0;
+  const totalOverhead = qcOverhead + calOverhead;
+
+  let seq = 0;
+  return (
+    <div className="page2-wrap">
+      <div className="tbl-section">
+        <div className="tbl-hbar">
+          <span className="tbl-title">Rincian Cost — {cType}</span>
+          <span className="tbl-note">Cost/Test = Beban Alat + Beban Consumable + Beban Reagen</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid var(--bdr)', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11 }}>
+            <span style={{ color: 'var(--text-3)' }}>Beban Alat/Test:</span>
+            <strong style={{ color: 'var(--red)', marginLeft: 4 }}>{rp(capPt)}</strong>
+          </span>
+          <span style={{ fontSize: 11 }}>
+            <span style={{ color: 'var(--text-3)' }}>Beban Consumable/Test:</span>
+            <strong style={{ marginLeft: 4 }}>{rp(consumablePerTest)}</strong>
+          </span>
+          {hasOverhead && (
+            <span style={{ fontSize: 11 }}>
+              <span style={{ color: 'var(--text-3)' }}>Overhead QC+Cal/Test:</span>
+              <strong style={{ color: 'var(--amber)', marginLeft: 4 }}>{rp(totalOverhead)}</strong>
+            </span>
+          )}
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 32 }}>No</th>
+                <th>Parameter</th>
+                <th>Panel</th>
+                <th>Pack</th>
+                <th className="r">Test/Kit</th>
+                <th className="r">Cost/Kit</th>
+                <th className="r">Cost/Test</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CC_PANELS.map(panel => {
+                const rows = displayParams.filter(p => p.panel === panel);
+                if (rows.length === 0) return null;
+                return [
+                  <tr key={`ph-${panel}`} className="tr-panel-hdr">
+                    <td colSpan={7}><span className={`badge ${PAN_CLS[panel]}`}>{panel}</span></td>
+                  </tr>,
+                  ...rows.map(p => {
+                    seq += 1;
+                    const nett       = p.price * (1 - p.disc / 100);
+                    const reagentCpt = p.testsPerKit > 0 ? nett / p.testsPerKit : 0;
+                    // Consumable items: show only their own reagent cost (they ARE the consumable overhead)
+                    const costTest = p.panel === 'Consumable'
+                      ? reagentCpt
+                      : capPt + consumablePerTest + reagentCpt;
+                    const costKit = p.panel === 'Consumable'
+                      ? nett
+                      : costTest * p.testsPerKit;
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ color: 'var(--text-3)' }}>{seq}</td>
+                        <td style={{ fontWeight: 700 }}>{p.name}</td>
+                        <td><span className={`badge ${PAN_CLS[p.panel]}`}>{p.panel}</span></td>
+                        <td style={{ fontSize: 11, color: 'var(--text-2)' }}>{p.pack}</td>
+                        <td className="r">{fmt(p.testsPerKit)}</td>
+                        <td className="r td-sell">{rp(costKit)}</td>
+                        <td className="cpt">{rp(costTest)}</td>
+                      </tr>
+                    );
+                  }),
+                ];
+              })}
+
+              {/* ── QC & Calibrator overhead rows (FREE mode) ── */}
+              {hasOverhead && (
+                <>
+                  <tr className="tr-panel-hdr">
+                    <td colSpan={7}>
+                      <span className="badge bctrl">QC &amp; Calibrator — Overhead (Free)</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 10 }}>
+                        dibebankan ke semua patient test
+                      </span>
+                    </td>
+                  </tr>
+                  {/* QC Control L1 + L2 */}
+                  <tr className="tr-qc-overhead">
+                    <td colSpan={4} style={{ fontSize: 11 }}>
+                      <span style={{ fontWeight: 600 }}>QC Control</span>
+                      <span style={{ color: 'var(--text-3)', marginLeft: 8 }}>
+                        {fmt(n)} param × 25 hari = {fmt(n * 25)} reaksi
+                        &nbsp;·&nbsp;Ctrl vial: {rp(freeCtrlNett)}
+                        &nbsp;·&nbsp;÷ {fmt(Math.round(pt25))} test/25hari
+                      </span>
+                    </td>
+                    <td className="r" style={{ color: 'var(--text-3)', fontSize: 11 }}>
+                      {freeCtrlVials.map(c => c.name).join(' + ') || '—'}
+                    </td>
+                    <td className="r" style={{ color: 'var(--amber)', fontWeight: 600 }}>{rp(freeCtrlNett)}</td>
+                    <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(qcOverhead)}</td>
+                  </tr>
+                  {/* Calibrator */}
+                  {freeCalibrator && (
+                    <tr className="tr-qc-overhead">
+                      <td colSpan={4} style={{ fontSize: 11 }}>
+                        <span style={{ fontWeight: 600 }}>Calibrator</span>
+                        <span style={{ color: 'var(--text-3)', marginLeft: 8 }}>
+                          {fmt(n)} param × {fmt(ccQC.n_cal)} kali = {fmt(n * (ccQC.n_cal || 0))} reaksi reagen
+                          &nbsp;·&nbsp;Cal/run: {rp(calPerRun)}
+                          &nbsp;·&nbsp;÷ {fmt(testsPerMonth)} test/bln
+                        </span>
+                      </td>
+                      <td className="r" style={{ color: 'var(--text-3)', fontSize: 11 }}>{freeCalibrator.pack}</td>
+                      <td className="r" style={{ color: 'var(--amber)', fontWeight: 600 }}>{rp(calKitCost)}</td>
+                      <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(calOverhead)}</td>
+                    </tr>
+                  )}
+                  {/* Overhead total */}
+                  <tr className="tr-sub">
+                    <td colSpan={6} style={{ color: 'var(--amber)' }}>Total Overhead QC + Cal / Test</td>
+                    <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(totalOverhead)}</td>
+                  </tr>
+                </>
+              )}
+
+              {/* Breakdown footer */}
+              <tr className="tr-sub">
+                <td colSpan={5} style={{ fontSize: 11 }}>
+                  Beban Alat: <strong style={{ color: 'var(--red)' }}>{rp(capPt)}</strong>
+                  &nbsp;·&nbsp;Beban Consumable: <strong>{rp(consumablePerTest)}</strong>
+                  &nbsp;·&nbsp; Cost/Test = Alat + Consumable + Reagen masing-masing parameter
+                </td>
+                <td colSpan={2}></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CCInputCC ────────────────────────────────────────────────────────────────
+
+const BLANK_FORM = { name: '', panel: 'Hepatic', pack: '', testsPerKit: 0, price: 0, disc: 0 };
+
+function CCInputCC({
+  cType, setCType, cSet, updC,
+  ups, setUps, lis, setLis,
+  backupOn, setBackupOn, backupKey, backupPrice, setBackupPrice, backupDisc, setBackupDisc,
+  onBackupKeyChange,
+  workDays, setWorkDays,
+  aNett, bNett, totCap, capPt, D, totTest,
+  ccParams, updCCParam, addCCParam, delCCParam,
+  ccQC, setCCQC,
+  onGoToResult,
+}) {
+  const [addForm, setAddForm] = useState(BLANK_FORM);
+  const cTypes = Object.values(CC);
+
+  const handleAdd = () => {
+    if (!addForm.name.trim()) return;
+    addCCParam(addForm);
+    setAddForm(BLANK_FORM);
+  };
 
   return (
-    <div className="tbl-section">
-      <div className="tbl-hbar">
-        <span className="tbl-title">Simulasi Pricelist — {data.label}</span>
-        <span className="tbl-note">
-          Beban alat + beban consumable dihitung per sampel · simulasi harga per parameter
-        </span>
+    <div className="input-grid">
+
+      {/* ── CAPEX ── */}
+      <div className="inp-card">
+        <div className="inp-card-title">CAPEX</div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500, marginBottom: 6 }}>Pilih Analyzer</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {cTypes.map(t => (
+              <MerkPill
+                key={t.label}
+                label={t.label}
+                color={C_COLORS[t.label]}
+                active={cType === t.label}
+                onClick={() => setCType(t.label)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>Harga Analyzer</label>
+          <NumInput value={cSet.price} onChange={v => updC('price', v)} prefix="Rp" />
+        </div>
+        <div className="field">
+          <label>Diskon Analyzer</label>
+          <NumInput value={cSet.disc} onChange={v => updC('disc', v)} suffix="%" />
+        </div>
+        <div className="comp">
+          <span className="cl">Nett Analyzer</span><span className="cv">{rp(aNett)}</span>
+        </div>
+        <div className="field">
+          <label>UPS</label>
+          <NumInput value={ups} onChange={setUps} prefix="Rp" />
+        </div>
+        <div className="field">
+          <label>LIS</label>
+          <NumInput value={lis} onChange={setLis} prefix="Rp" />
+        </div>
+
+        <div className="sep" />
+        <div className="bck-toggle">
+          <input type="checkbox" id="bck-cc" checked={backupOn}
+            onChange={e => setBackupOn(e.target.checked)} />
+          <label htmlFor="bck-cc">+ Backup Analyzer</label>
+        </div>
+        {backupOn && (
+          <div className="bck-fields">
+            <div className="field">
+              <label>Tipe Backup</label>
+              <select value={backupKey} onChange={e => onBackupKeyChange(e.target.value)}>
+                {cTypes.map(t => (
+                  <option key={t.label} value={t.label}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Harga Backup</label>
+              <NumInput value={backupPrice} onChange={setBackupPrice} prefix="Rp" />
+            </div>
+            <div className="field">
+              <label>Diskon Backup</label>
+              <NumInput value={backupDisc} onChange={setBackupDisc} suffix="%" />
+            </div>
+            <div className="comp">
+              <span className="cl">Nett Backup</span><span className="cv">{rp(bNett)}</span>
+            </div>
+          </div>
+        )}
+
+        <div className="comp strong">
+          <span className="cl">Total CAPEX</span><span className="cv">{rp(totCap)}</span>
+        </div>
       </div>
-      <div className="tbl-wrap">
-        <table>
-          <thead>
-            <tr>
-              {/* identitas */}
-              <th style={{ width: 28 }}>No</th>
-              <th>Parameter</th>
-              <th>Panel</th>
-              <th>Pack</th>
-              <th className="r">Test/Kit</th>
-              {/* harga reagen */}
-              <th className="r" style={{ borderLeft: '2px solid #C7D6F0' }}>Harga Beli</th>
-              <th className="r">Disc %</th>
-              <th className="r">Nett/Kit</th>
-              <th className="r">Reagen/Test</th>
-              {/* simulasi */}
-              <th className="r" style={{ borderLeft: '2px solid #C7D6F0', background: '#EBF0FB' }}>Beban Alat/Test</th>
-              <th className="r" style={{ background: '#EBF0FB' }}>Beban Cons/Test</th>
-              <th className="r" style={{ background: '#EBF0FB' }}>Base/Test</th>
-              <th className="r" style={{ background: '#D6E8FF', fontWeight: 800 }}>Jual/Test</th>
-              <th className="r" style={{ background: '#D6E8FF', fontWeight: 800 }}>Simulasi/Kit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {CC_P.map(p => {
-              const par     = ccPar[p.no];
-              const nett    = par.price * (1 - par.disc / 100);
-              const rgnCpt  = p.t > 0 ? nett / p.t : 0;
-              const base    = capPt + detTotal + rgnCpt;
-              const sellPt  = sellOf(base, markup);
-              const sellKit = sellPt * p.t;
-              return (
-                <tr key={p.no}>
-                  <td style={{ color: 'var(--text-3)' }}>{p.no}</td>
-                  <td style={{ fontWeight: 700 }}>{p.p}</td>
-                  <td><span className={`badge ${PAN_CLS[p.pan] || 'bh'}`}>{p.pan}</span></td>
-                  <td style={{ fontSize: '11px', color: 'var(--text-2)' }}>{p.pack}</td>
-                  <td className="r">{fmt(p.t)}</td>
 
-                  <td className="r" style={{ borderLeft: '2px solid #C7D6F0' }}>
-                    <CCNumInput value={par.price} onChange={v => updCCPar(p.no, 'price', v)} />
-                  </td>
-                  <td className="r">
-                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
-                      <CCNumInput value={par.disc} onChange={v => updCCPar(p.no, 'disc', v)} small />
-                      <span style={{ color: 'var(--text-3)' }}>%</span>
+      {/* ── Skema KSO ── */}
+      <div className="inp-card">
+        <div className="inp-card-title">SKEMA KSO</div>
+
+        <div className="field">
+          <label>Masa KSO</label>
+          <NumInput value={cSet.kso} onChange={v => updC('kso', v)} suffix="bln" />
+        </div>
+        <div className="field">
+          <label>Sampel / Bulan</label>
+          <NumInput value={cSet.tests} onChange={v => updC('tests', v)} />
+        </div>
+        <div className="field">
+          <label>Hari Kerja / Bulan</label>
+          <NumInput value={workDays} onChange={setWorkDays} suffix="hari" />
+        </div>
+        <div className="field">
+          <label>Batch / Hari</label>
+          <NumInput value={cSet.batch} onChange={v => updC('batch', v)} suffix="sesi" />
+        </div>
+        <div className="field">
+          <label>Margin / Markup</label>
+          <NumInput value={cSet.markup} onChange={v => updC('markup', v)} suffix="%" />
+        </div>
+
+        <div className="sep" />
+        <div className="comp">
+          <span className="cl">Sampel / Hari</span>
+          <span className="cv">{D > 0 ? fmt(D) : '—'}</span>
+        </div>
+        <div className="comp">
+          <span className="cl">Total Sampel KSO</span>
+          <span className="cv">{totTest > 0 ? fmt(totTest) : '—'}</span>
+        </div>
+        <div className="comp">
+          <span className="cl">CAPEX / Sampel</span>
+          <span className="cv" style={{ color: 'var(--red)' }}>{rp(capPt)}</span>
+        </div>
+
+        <div className="sep" style={{ marginTop: 12 }} />
+        <button className="goto-btn" onClick={onGoToResult}>
+          Lihat Hasil Perhitungan ▶
+        </button>
+      </div>
+
+      {/* ── Parameter Reagen ── */}
+      <div className="inp-card cc-param-card">
+        <div className="inp-card-title">PARAMETER REAGEN</div>
+
+        <div className="cc-param-table-hdr">
+          <span style={{ flex: 2 }}>Nama</span>
+          <span style={{ flex: 3 }}>Pack</span>
+          <span style={{ width: 70, textAlign: 'right' }}>Test/Kit</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Harga Beli</span>
+          <span style={{ width: 52, textAlign: 'right' }}>Disc%</span>
+          <span style={{ width: 54 }}></span>
+        </div>
+
+        {CC_PANELS.map(panel => {
+          const items = ccParams.filter(p => p.panel === panel);
+          const isCtrl = panel === 'Control';
+          const anyFreeCtrl = isCtrl && items.some(p => p.free);
+          return (
+            <div key={panel} className="cc-param-group">
+              <div className="cc-param-group-hdr">
+                <span className={`badge ${PAN_CLS[panel]}`}>{panel}</span>
+              </div>
+              {items.length === 0 && (
+                <div style={{ fontSize: 11, color: 'var(--text-3)', padding: '4px 0 6px', fontStyle: 'italic' }}>
+                  Belum ada parameter
+                </div>
+              )}
+              {items.map(p => {
+                const editable = p.custom || isCtrl;
+                return (
+                  <div key={p.id} className="cc-param-row">
+                    <span className="cc-pr-name">
+                      {editable
+                        ? <input className="cc-pr-text" value={p.name}
+                            onChange={e => updCCParam(p.id, 'name', e.target.value)} placeholder="Nama" />
+                        : p.name}
                     </span>
-                  </td>
-                  <td className="r">{fmt(nett)}</td>
-                  <td className="cpt">{fmt(rgnCpt)}</td>
+                    <span className="cc-pr-pack">
+                      {editable
+                        ? <input className="cc-pr-text" value={p.pack}
+                            onChange={e => updCCParam(p.id, 'pack', e.target.value)} placeholder="Kemasan" />
+                        : p.pack}
+                    </span>
+                    <span className="cc-pr-t">
+                      {editable
+                        ? <SmallNumInput value={p.testsPerKit} onChange={v => updCCParam(p.id, 'testsPerKit', v)} tiny />
+                        : fmt(p.testsPerKit)}
+                    </span>
+                    <span className="cc-pr-num">
+                      <SmallNumInput value={p.price} onChange={v => updCCParam(p.id, 'price', v)} />
+                    </span>
+                    <span className="cc-pr-disc">
+                      <SmallNumInput value={p.disc} onChange={v => updCCParam(p.id, 'disc', v)} tiny />
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>%</span>
+                    </span>
+                    <span className="cc-pr-act">
+                      {isCtrl && (
+                        <label className="cc-free-toggle">
+                          <input type="checkbox" checked={!!p.free} style={{ display: 'none' }}
+                            onChange={e => updCCParam(p.id, 'free', e.target.checked)} />
+                          <span className={p.free ? 'cc-free-on' : 'cc-free-off'}>
+                            {p.free ? 'Free' : 'Paid'}
+                          </span>
+                        </label>
+                      )}
+                      {p.custom && !isCtrl && (
+                        <button className="cc-del-btn" onClick={() => delCCParam(p.id)}>×</button>
+                      )}
+                      {p.custom && isCtrl && (
+                        <button className="cc-del-btn" style={{ marginLeft: 2 }} onClick={() => delCCParam(p.id)}>×</button>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
 
-                  <td className="r" style={{ borderLeft: '2px solid #C7D6F0', background: '#F3F7FF', color: 'var(--text-2)' }}>{detRes ? fmt(capPt) : '—'}</td>
-                  <td className="r" style={{ background: '#F3F7FF', color: 'var(--text-2)' }}>{detRes ? fmt(detTotal) : '—'}</td>
-                  <td className="r" style={{ background: '#F3F7FF', fontWeight: 600 }}>{detRes ? fmt(base) : '—'}</td>
-                  <td className="r" style={{ background: '#EBF3FF', fontWeight: 700, color: 'var(--blue)' }}>{detRes ? rp(sellPt) : '—'}</td>
-                  <td className="r" style={{ background: '#EBF3FF', fontWeight: 800, color: 'var(--blue)', fontSize: 13 }}>{detRes ? rp(sellKit) : '—'}</td>
-                </tr>
-              );
-            })}
+              {/* QC Settings — shown inside Control group when any item is Free */}
+              {isCtrl && anyFreeCtrl && (
+                <div className="cc-qc-settings">
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', marginBottom: 6, letterSpacing: '0.5px' }}>
+                    PENGATURAN QC &amp; KALIBRASI
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Parameter / hari</span>
+                      <SmallNumInput value={ccQC.n_param} onChange={v => setCCQC(q => ({ ...q, n_param: v }))} tiny />
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>param</span>
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi / 25 hari</span>
+                      <SmallNumInput value={ccQC.n_cal} onChange={v => setCCQC(q => ({ ...q, n_cal: v }))} tiny />
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
-            {/* Consumable rows */}
-            {data.cons.map(c => {
-              const obj    = consObjs[c.id];
-              const nett   = nettOf(obj);
-              const detCpt = detRes ? (c.id === 'conc' ? detRes.conc : detRes.probe) : null;
-              return (
-                <tr key={c.id} style={{ background: '#F0F9FF' }}>
-                  <td style={{ color: 'var(--text-3)' }}>—</td>
-                  <td style={{ fontWeight: 600 }}>{c.fn}</td>
-                  <td><span className="badge bc">Consumable</span></td>
-                  <td style={{ fontSize: '11px', color: 'var(--text-2)' }}>{c.pack}</td>
-                  <td className="r" style={{ color: 'var(--text-3)' }}>/{fmt(c.vol)} mL</td>
-
-                  <td className="r" style={{ borderLeft: '2px solid #C7D6F0', color: 'var(--text-3)' }}>{fmt(obj.price)}</td>
-                  <td className="r" style={{ color: 'var(--text-3)' }}>{obj.disc}%</td>
-                  <td className="r" style={{ color: 'var(--text-3)' }}>{fmt(nett)}</td>
-                  <td className="cpt">{detCpt !== null ? fmt(detCpt) : '—'}</td>
-
-                  <td colSpan={5} style={{ borderLeft: '2px solid #C7D6F0', color: 'var(--text-3)', fontSize: 11, background: '#F0F9FF' }}>
-                    Biaya consumable sudah dimasukkan ke kolom Beban Cons/Test setiap parameter
-                  </td>
-                </tr>
-              );
-            })}
-
-            <tr className="tr-sub">
-              <td colSpan={9}>Total Detergent / Sampel</td>
-              <td colSpan={5} className="cpt" style={{ textAlign: 'right' }}>
-                {detRes ? rp(detTotal) : '—'}
-              </td>
-            </tr>
-            <tr className="tr-capex">
-              <td colSpan={9} style={{ color: 'var(--red)' }}>+ CAPEX / Sampel</td>
-              <td colSpan={5} className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>
-                {rp(capPt)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        {/* Add form */}
+        <div className="cc-add-form">
+          <div className="cc-add-title">+ Tambah Parameter</div>
+          <div className="cc-add-row">
+            <input className="cc-add-text" placeholder="Nama parameter"
+              value={addForm.name} onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))} />
+            <select className="cc-add-sel" value={addForm.panel}
+              onChange={e => setAddForm(f => ({ ...f, panel: e.target.value }))}>
+              {CC_PANELS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <input className="cc-add-text" placeholder="Pack / kemasan"
+              value={addForm.pack} onChange={e => setAddForm(f => ({ ...f, pack: e.target.value }))} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <SmallNumInput value={addForm.testsPerKit} onChange={v => setAddForm(f => ({ ...f, testsPerKit: v }))} tiny />
+              <span style={{ fontSize: 10, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>test/kit</span>
+            </span>
+            <SmallNumInput value={addForm.price} onChange={v => setAddForm(f => ({ ...f, price: v }))} />
+            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <SmallNumInput value={addForm.disc} onChange={v => setAddForm(f => ({ ...f, disc: v }))} tiny />
+              <span style={{ fontSize: 10, color: 'var(--text-3)' }}>%</span>
+            </span>
+            <button className="cc-add-btn" onClick={handleAdd}>Tambah</button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -260,14 +689,14 @@ function initHSet() {
     Z3:      { price: 115e6,     disc: 0,  kso: 60, markup: 20, tests: 500  },
     Z52:     { price: 190e6,     disc: 0,  kso: 60, markup: 20, tests: 750  },
     Z50:     { price: 210e6,     disc: 0,  kso: 60, markup: 20, tests: 750  },
-    EXZ8000: { price: 500e6,     disc: 0,  kso: 60, markup: 20, tests: 2000 },
+    EXZ8000: { price: 754800000, disc: 0,  kso: 60, markup: 20, tests: 2000 },
     EXZ6000: { price: 365e6,     disc: 0,  kso: 60, markup: 20, tests: 1500 },
   };
 }
 function initCSet() {
   return {
-    EXC200: { price: 210e6,     disc: 30, kso: 60, markup: 20, tests: 1800 },
-    EXC400: { price: 765765000, disc: 0,  kso: 60, markup: 20, tests: 5000 },
+    EXC200: { price: 210e6,     disc: 30, kso: 60, markup: 20, tests: 1800, batch: 20 },
+    EXC400: { price: 765765000, disc: 0,  kso: 60, markup: 20, tests: 5000, batch: 20 },
   };
 }
 function initHRp() {
@@ -283,19 +712,29 @@ function initHRp() {
     EXZ6000: { dn: {price:2000000,disc:0}, ldi: {price:2600000,disc:0}, ldii: {price:3250000,disc:0}, lb: {price:2250000,disc:0}, probe: {price:400000,disc:0} },
   };
 }
-function initCCCons() {
-  return {
-    EXC200: { conc: {price:10032000,disc:0}, probe_d: {price:4026000,disc:0} },
-    EXC400: { conc: {price:10032000,disc:0}, probe_d: {price:4026000,disc:0} },
-  };
-}
-function initCCPar() {
-  return Object.fromEntries(CC_P.map(p => [p.no, { price: p.dp, disc: 0 }]));
+function initCCParams() {
+  const base = CC_P.map(p => ({
+    id:          `cc_${p.no}`,
+    name:        p.p,
+    panel:       p.pan,
+    pack:        p.pack,
+    testsPerKit: p.t,
+    price:       p.dp,
+    disc:        0,
+    custom:      false,
+    free:        p.pan === 'Control',
+  }));
+  base.push({
+    id: 'cc_cal', name: 'Calibrator', panel: 'Control',
+    pack: '1 set', testsPerKit: 1, price: 0, disc: 0, custom: false, free: true,
+  });
+  return base;
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+  const [page,        setPage]        = useState('input');
   const [tab,         setTab]         = useState('hemato');
   const [hType,       setHType]       = useState('Z3');
   const [cType,       setCType]       = useState('EXC200');
@@ -308,9 +747,16 @@ export default function Dashboard() {
   const [backupKey,   setBackupKey]   = useState('Z3');
   const [backupPrice, setBackupPrice] = useState(115e6);
   const [backupDisc,  setBackupDisc]  = useState(0);
-  const [hRp,    setHRp]    = useState(initHRp);
-  const [ccCons, setCCCons] = useState(initCCCons);
-  const [ccPar,  setCCPar]  = useState(initCCPar);
+  const [hRp,         setHRp]         = useState(initHRp);
+  const [exzMode,     setExzMode]     = useState('cbc_diff_ret');
+  const [exzCtrl,     setExzCtrl]     = useState({
+    free: true, n_qc: 3, n_cal: 2,
+    xn:  { price: 5894000,  disc: 0 },
+    xr:  { price: 11787000, disc: 0 },
+    cal: { price: 1700000,  disc: 0 },
+  });
+  const [ccParams,    setCCParams]    = useState(initCCParams);
+  const [ccQC,        setCCQC]        = useState({ n_param: 10, n_cal: 2 });
 
   // ── CAPEX ──
   const curSet  = tab === 'hemato' ? hSet[hType] : cSet[cType];
@@ -321,47 +767,27 @@ export default function Dashboard() {
   const capPt   = totTest > 0 ? totCap / totTest : 0;
   const D       = workDays > 0 ? curSet.tests / workDays : 0;
 
-  // ── Nett price maps ──
+  // ── Reagent nett maps (hemato) ──
   const rpNettMap = {};
   Object.entries(hRp[hType]).forEach(([id, obj]) => { rpNettMap[id] = nettOf(obj); });
 
-  const consNettMap = {};
-  Object.entries(ccCons[cType]).forEach(([id, obj]) => { consNettMap[id] = nettOf(obj); });
-
-  // ── Calc ──
-  let hRes   = null;
-  let detRes = null;
-
+  // ── Calc (hemato) ──
+  let hRes = null;
   if (tab === 'hemato' && D > 0) {
-    hRes = HEMATO[hType].calc(curSet.tests, workDays, rpNettMap);
-  } else if (tab === 'cc' && D > 0) {
-    detRes = CC[cType].det(curSet.tests, workDays, consNettMap.conc, consNettMap.probe_d);
+    hRes = HEMATO[hType].calc(curSet.tests, workDays, rpNettMap, hType === 'EXZ8000' ? exzMode : undefined);
   }
-
-  // ── CC: average reagent cost/test across all 16 parameters ──
-  const avgReagenCpt = CC_P.reduce((sum, p) => {
-    const par  = ccPar[p.no];
-    const nett = par.price * (1 - par.disc / 100);
-    return sum + (p.t > 0 ? nett / p.t : 0);
-  }, 0) / CC_P.length;
-
-  const detTotal = detRes ? detRes.total : 0;
-
-  // ── Base cost & sell price ──
-  const hReagenCpt = hRes ? hRes.total : 0;
-  const baseCost   = tab === 'hemato'
-    ? capPt + hReagenCpt
-    : capPt + detTotal + avgReagenCpt;
-  const sellPrice  = sellOf(baseCost, curSet.markup);
 
   // ── Updaters ──
   const updH  = (f, v) => setHSet(p  => ({ ...p, [hType]: { ...p[hType], [f]: v } }));
   const updC  = (f, v) => setCSet(p  => ({ ...p, [cType]: { ...p[cType], [f]: v } }));
-  const updS  = (f, v) => tab === 'hemato' ? updH(f, v) : updC(f, v);
+  const updHRp = (id, fld, v) => setHRp(p => ({ ...p, [hType]: { ...p[hType], [id]: { ...p[hType][id], [fld]: v } } }));
 
-  const updHRp    = (id, fld, v) => setHRp(p    => ({ ...p, [hType]: { ...p[hType], [id]: { ...p[hType][id], [fld]: v } } }));
-  const updCCCons = (id, fld, v) => setCCCons(p  => ({ ...p, [cType]: { ...p[cType], [id]: { ...p[cType][id], [fld]: v } } }));
-  const updCCPar  = (no, fld, v) => setCCPar(p   => ({ ...p, [no]: { ...p[no], [fld]: v } }));
+  const updCCParam = (id, field, value) =>
+    setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
+  const addCCParam = (data) =>
+    setCCParams(ps => [...ps, { ...data, id: `custom_${ps.length + 1}`, custom: true }]);
+  const delCCParam = (id) =>
+    setCCParams(ps => ps.filter(p => p.id !== id));
 
   const selHType = (t) => {
     setHType(t);
@@ -373,238 +799,419 @@ export default function Dashboard() {
     if (d) { setBackupPrice(d.dP); setBackupDisc(d.dD); }
   };
 
-  const types   = tab === 'hemato' ? Object.values(HEMATO) : Object.values(CC);
-  const curKey  = tab === 'hemato' ? hType : cType;
-  const setType = tab === 'hemato' ? selHType : setCType;
+  const hTypes  = Object.values(HEMATO);
+  // EXZ8000 control/calibrator overhead
+  let ctrlOverhead = 0;
+  if (hType === 'EXZ8000' && D > 0 && hRes && (exzMode === 'cbc_diff_xn' || exzMode === 'cbc_diff_ret_xr')) {
+    const isXr      = exzMode === 'cbc_diff_ret_xr';
+    const ctrlObj   = isXr ? exzCtrl.xr : exzCtrl.xn;
+    const nettCtrl  = ctrlObj.price * (1 - ctrlObj.disc / 100);
+    const nettCal   = exzCtrl.cal.price * (1 - exzCtrl.cal.disc / 100);
+    const tests25   = D * 25;
+    if (exzCtrl.free) {
+      const qcReagen  = exzCtrl.n_qc * 25 * hRes.cyc;
+      const calReagen = exzCtrl.n_cal * hRes.cyc;
+      ctrlOverhead = (nettCtrl + qcReagen + nettCal + calReagen) / tests25;
+    } else {
+      ctrlOverhead = (nettCtrl + nettCal) / tests25;
+    }
+  }
 
-  const reagents   = tab === 'hemato' ? HEMATO[hType].reagents : CC[cType].cons;
-  const getRpObj   = (id) => tab === 'hemato' ? hRp[hType][id] : ccCons[cType][id];
-  const setRpField = (id, fld, v) => tab === 'hemato' ? updHRp(id, fld, v) : updCCCons(id, fld, v);
+  const hReagenCpt = hRes ? hRes.total : 0;
+  const sellPrice  = tab === 'hemato' ? sellOf(capPt + hReagenCpt + ctrlOverhead, curSet.markup) : 0;
 
-  // ── Metrics ──
-  const MetricsHemato = () => (
-    <div className="metrics">
-      <div className="mc">
-        <div className="ml">CAPEX / Test</div>
-        <div className="mv">{rp(capPt)}</div>
-        <div className="ms">{totTest > 0 ? `${fmt(totTest)} test · ${curSet.kso} bln` : '—'}</div>
-      </div>
-      <div className="mc">
-        <div className="ml">Reagen / Test (CBC)</div>
-        <div className="mv">{rp(hReagenCpt)}</div>
-        <div className="ms">{D > 0 ? `${fmt(D)} test/hari` : '—'}</div>
-      </div>
-      <div className="mc">
-        <div className="ml">Base Cost / Test</div>
-        <div className="mv">{rp(baseCost)}</div>
-        <div className="ms">sebelum markup</div>
-      </div>
-      <div className="mc hi">
-        <div className="ml">Harga Jual / Test</div>
-        <div className="mv">{rp(sellPrice)}</div>
-        <div className="ms">margin {curSet.markup}%</div>
-      </div>
-    </div>
-  );
+  const exzModeLabel = hType === 'EXZ8000'
+    ? HEMATO.EXZ8000.testModes.find(m => m.id === exzMode)?.label
+    : null;
 
-  const MetricsCC = () => (
-    <div className="metrics metrics-cc">
-      <div className="mc">
-        <div className="ml">① Beban Alat / Sampel</div>
-        <div className="mv">{rp(capPt)}</div>
-        <div className="ms">{totTest > 0 ? `CAPEX ÷ ${fmt(totTest)} sampel` : '—'}</div>
-      </div>
-      <div className="mc">
-        <div className="ml">② Beban Consumable / Sampel</div>
-        <div className="mv">{rp(detTotal)}</div>
-        <div className="ms">{D > 0 ? `detergent · ${fmt(D)} sampel/hari` : '—'}</div>
-      </div>
-      <div className="mc">
-        <div className="ml">③ Avg Reagen / Test</div>
-        <div className="mv">{rp(avgReagenCpt)}</div>
-        <div className="ms">rata-rata {CC_P.length} parameter</div>
-      </div>
-      <div className="mc" style={{ borderColor: '#CBD5E1' }}>
-        <div className="ml">Base Cost Avg / Test</div>
-        <div className="mv" style={{ fontSize: 18 }}>{rp(baseCost)}</div>
-        <div className="ms">① + ② + ③</div>
-      </div>
-      <div className="mc hi">
-        <div className="ml">Avg Harga Jual / Test</div>
-        <div className="mv">{rp(sellPrice)}</div>
-        <div className="ms">margin {curSet.markup}%</div>
-      </div>
-    </div>
-  );
+  const reagents   = HEMATO[hType].reagents;
+  const getRpObj   = (id) => hRp[hType][id];
+  const setRpField = (id, fld, v) => updHRp(id, fld, v);
 
   return (
     <div>
+      {/* ── Header ── */}
       <header className="hdr">
         <div className="brand">
           <span className="brand-n">ZYBIO</span>
           <span className="brand-t">KSO Running Cost Simulator</span>
         </div>
-        <div className="hdr-r">Hematologi &amp; Kimia Klinik<br />Wahana Lifeline · 2026</div>
+        <div className="hdr-r">
+          Hematologi &amp; Kimia Klinik<br />Wahana Lifeline · 2026
+        </div>
       </header>
 
-      <nav className="tab-bar">
-        {[{ key: 'hemato', label: 'Hematologi' }, { key: 'cc', label: 'Kimia Klinik' }].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`tab-btn${tab === t.key ? ' active' : ''}`}>
-            {t.label}
-          </button>
-        ))}
+      {/* ── Page navigation ── */}
+      <nav className="page-nav">
+        <button
+          className={`pnav-btn${page === 'input' ? ' pnav-active' : ''}`}
+          onClick={() => setPage('input')}
+        >
+          ▶ INPUT &amp; PRICELIST REAGEN
+        </button>
+        <button
+          className={`pnav-btn${page === 'result' ? ' pnav-active' : ''}`}
+          onClick={() => setPage('result')}
+        >
+          ▶ HASIL PERHITUNGAN
+        </button>
       </nav>
 
-      <div className="workspace">
-        <aside className="sidebar">
+      {/* ══════════════════════════════════════════════════════════════
+          PAGE 1 — INPUT
+      ══════════════════════════════════════════════════════════════ */}
+      {page === 'input' && (
+        <div className="page-body">
 
-          <div className="sb-section">
-            <div className="sb-lbl">Tipe Analyzer</div>
-            <div className="type-grid">
-              {types.map(t => (
-                <button key={t.label} onClick={() => setType(t.label)}
-                  className={`type-btn${curKey === t.label ? ' active' : ''}`}>
-                  {t.label}
-                  {t.diff && <span className="diff-tag">{t.diff}</span>}
-                </button>
-              ))}
-            </div>
+          {/* ── Pilih Kategori ── */}
+          <div className="sel-row">
+            <span className="sel-label">PILIH KATEGORI</span>
+            <MerkPill label="Hematologi" color={CAT_COLORS.hemato}
+              active={tab === 'hemato'} onClick={() => setTab('hemato')} />
+            <MerkPill label="Kimia Klinik" color={CAT_COLORS.cc}
+              active={tab === 'cc'} onClick={() => setTab('cc')} />
           </div>
 
-          <div className="sb-section">
-            <div className="sb-lbl">CAPEX</div>
-            <div className="field">
-              <label>Harga Analyzer</label>
-              <NumInput value={curSet.price} onChange={v => updS('price', v)} prefix="Rp" />
-            </div>
-            <div className="field">
-              <label>Diskon Analyzer</label>
-              <NumInput value={curSet.disc} onChange={v => updS('disc', v)} suffix="%" />
-            </div>
-            <div className="comp">
-              <span className="cl">Nett Analyzer</span><span className="cv">{rp(aNett)}</span>
-            </div>
-            <div className="field">
-              <label>UPS</label>
-              <NumInput value={ups} onChange={setUps} prefix="Rp" />
-            </div>
-            <div className="field">
-              <label>LIS</label>
-              <NumInput value={lis} onChange={setLis} prefix="Rp" />
-            </div>
-            <div className="sep" />
-            <div className="bck-toggle">
-              <input type="checkbox" id="bck-on" checked={backupOn}
-                onChange={e => setBackupOn(e.target.checked)} />
-              <label htmlFor="bck-on">+ Backup Analyzer</label>
-            </div>
-            {backupOn && (
-              <div className="bck-fields">
-                <div className="field">
-                  <label>Tipe Backup</label>
-                  <select value={backupKey} onChange={e => onBackupKeyChange(e.target.value)}>
-                    {types.map(t => (
-                      <option key={t.label} value={t.label}>
-                        {t.label}{t.diff ? ` (${t.diff})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <label>Harga Backup</label>
-                  <NumInput value={backupPrice} onChange={setBackupPrice} prefix="Rp" />
-                </div>
-                <div className="field">
-                  <label>Diskon Backup</label>
-                  <NumInput value={backupDisc} onChange={setBackupDisc} suffix="%" />
-                </div>
-                <div className="comp">
-                  <span className="cl">Nett Backup</span><span className="cv">{rp(bNett)}</span>
-                </div>
+          {/* ══ HEMATO INPUT ══ */}
+          {tab === 'hemato' && (
+            <>
+              <div className="sel-row">
+                <span className="sel-label">PILIH ANALYZER</span>
+                {hTypes.map(t => (
+                  <MerkPill key={t.label} label={t.label} color={H_COLORS[t.label]}
+                    active={hType === t.label} onClick={() => selHType(t.label)} sub={t.diff} />
+                ))}
+                <span className="sel-desc">{HEMATO[hType].diff} · {hType}</span>
               </div>
-            )}
-            <div className="comp strong">
-              <span className="cl">Total CAPEX</span><span className="cv">{rp(totCap)}</span>
-            </div>
-          </div>
 
-          <div className="sb-section">
-            <div className="sb-lbl">Parameter KSO</div>
-            <div className="field">
-              <label>Masa KSO</label>
-              <NumInput value={curSet.kso} onChange={v => updS('kso', v)} suffix="bln" />
-            </div>
-            <div className="field">
-              <label>{tab === 'hemato' ? 'Test / Bulan' : 'Sampel / Bulan'}</label>
-              <NumInput value={curSet.tests} onChange={v => updS('tests', v)} />
-            </div>
-            <div className="field">
-              <label>Hari Kerja / Bulan</label>
-              <NumInput value={workDays} onChange={setWorkDays} suffix="hari" />
-            </div>
-            <div className="comp">
-              <span className="cl">{tab === 'hemato' ? 'Test' : 'Sampel'} / Hari</span>
-              <span className="cv">{D > 0 ? fmt(D) : '—'}</span>
-            </div>
-            <div className="comp">
-              <span className="cl">Total {tab === 'hemato' ? 'Test' : 'Sampel'} KSO</span>
-              <span className="cv">{totTest > 0 ? fmt(totTest) : '—'}</span>
-            </div>
-            <div className="field" style={{ marginTop: 6 }}>
-              <label>Margin / Markup</label>
-              <NumInput value={curSet.markup} onChange={v => updS('markup', v)} suffix="%" />
-            </div>
-          </div>
+              {hType === 'EXZ8000' && (
+                <div className="sel-row">
+                  <span className="sel-label">MODE TEST</span>
+                  {HEMATO.EXZ8000.testModes.map(m => (
+                    <MerkPill key={m.id} label={m.label} color="#8B5CF6"
+                      active={exzMode === m.id} onClick={() => setExzMode(m.id)} />
+                  ))}
+                </div>
+              )}
 
-          <div className="sb-section">
-            <div className="sb-lbl">
-              {tab === 'hemato' ? 'Harga Reagen' : 'Harga Consumable'}
-            </div>
-            <div className="rp-list">
-              {reagents.map(r => {
-                const obj  = getRpObj(r.id);
-                const nett = nettOf(obj);
-                return (
-                  <div key={r.id} className="rp-item">
-                    <div className="rp-name" title={r.fn}>{r.fn}</div>
-                    <div className="rp-pack">{r.pack}</div>
+              {hType === 'EXZ8000' && (
+                <div className="sel-row">
+                  <span className="sel-label">PRESET TEST/BLN</span>
+                  <div className="preset-grid">
+                    {HEMATO.EXZ8000.testPresets.map(v => (
+                      <button key={v} onClick={() => updH('tests', v)}
+                        className={`preset-btn${curSet.tests === v ? ' active' : ''}`}>
+                        {fmt(v)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hType === 'EXZ8000' && (exzMode === 'cbc_diff_xn' || exzMode === 'cbc_diff_ret_xr') && (
+                <div className="sel-row" style={{ flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+                  <span className="sel-label">KONTROL &amp; CAL</span>
+                  {/* Free / Paid toggle */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {['free', 'beli'].map(opt => (
+                      <button key={opt}
+                        className={`merk-pill${(opt === 'free') === exzCtrl.free ? ' merk-active' : ''}`}
+                        style={(opt === 'free') === exzCtrl.free ? { borderColor: '#8B5CF6', color: '#8B5CF6' } : {}}
+                        onClick={() => setExzCtrl(s => ({ ...s, free: opt === 'free' }))}>
+                        {opt === 'free' ? 'Free (Overhead)' : 'Beli (Pricelist)'}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Control price */}
+                  <div className="rp-item" style={{ minWidth: 220 }}>
+                    <div className="rp-name">{exzMode === 'cbc_diff_xn' ? 'Check-XN Control' : 'Check-XR Control'}</div>
                     <div className="rp-row2">
                       <div className="field" style={{ margin: 0 }}>
                         <label>Harga Beli</label>
-                        <NumInput value={obj.price} onChange={v => setRpField(r.id, 'price', v)} prefix="Rp" />
+                        <NumInput
+                          value={exzMode === 'cbc_diff_xn' ? exzCtrl.xn.price : exzCtrl.xr.price}
+                          onChange={v => setExzCtrl(s => exzMode === 'cbc_diff_xn'
+                            ? { ...s, xn: { ...s.xn, price: v } }
+                            : { ...s, xr: { ...s.xr, price: v } })}
+                          prefix="Rp" />
                       </div>
                       <div className="field" style={{ margin: 0 }}>
                         <label>Diskon</label>
-                        <NumInput value={obj.disc} onChange={v => setRpField(r.id, 'disc', v)} suffix="%" />
+                        <NumInput
+                          value={exzMode === 'cbc_diff_xn' ? exzCtrl.xn.disc : exzCtrl.xr.disc}
+                          onChange={v => setExzCtrl(s => exzMode === 'cbc_diff_xn'
+                            ? { ...s, xn: { ...s.xn, disc: v } }
+                            : { ...s, xr: { ...s.xr, disc: v } })}
+                          suffix="%" />
                       </div>
                     </div>
-                    <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
                   </div>
-                );
-              })}
+                  {/* Calibrator price */}
+                  <div className="rp-item" style={{ minWidth: 220 }}>
+                    <div className="rp-name">CAL Calibrator</div>
+                    <div className="rp-row2">
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Harga Beli</label>
+                        <NumInput value={exzCtrl.cal.price}
+                          onChange={v => setExzCtrl(s => ({ ...s, cal: { ...s.cal, price: v } }))}
+                          prefix="Rp" />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Diskon</label>
+                        <NumInput value={exzCtrl.cal.disc}
+                          onChange={v => setExzCtrl(s => ({ ...s, cal: { ...s.cal, disc: v } }))}
+                          suffix="%" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Free-mode extra inputs */}
+                  {exzCtrl.free && (
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>
+                        Kontrol open stability <strong>25 hari</strong> / botol
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jml QC/hari</span>
+                        <SmallNumInput value={exzCtrl.n_qc}
+                          onChange={v => setExzCtrl(s => ({ ...s, n_qc: v }))} tiny />
+                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>run</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi/25 hari</span>
+                        <SmallNumInput value={exzCtrl.n_cal}
+                          onChange={v => setExzCtrl(s => ({ ...s, n_cal: v }))} tiny />
+                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="input-grid">
+                {/* CAPEX */}
+                <div className="inp-card">
+                  <div className="inp-card-title">CAPEX</div>
+                  <div className="field">
+                    <label>Harga Analyzer</label>
+                    <NumInput value={curSet.price} onChange={v => updH('price', v)} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>Diskon Analyzer</label>
+                    <NumInput value={curSet.disc} onChange={v => updH('disc', v)} suffix="%" />
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Nett Analyzer</span><span className="cv">{rp(aNett)}</span>
+                  </div>
+                  <div className="field">
+                    <label>UPS</label>
+                    <NumInput value={ups} onChange={setUps} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>LIS</label>
+                    <NumInput value={lis} onChange={setLis} prefix="Rp" />
+                  </div>
+                  <div className="sep" />
+                  <div className="bck-toggle">
+                    <input type="checkbox" id="bck-on" checked={backupOn}
+                      onChange={e => setBackupOn(e.target.checked)} />
+                    <label htmlFor="bck-on">+ Backup Analyzer</label>
+                  </div>
+                  {backupOn && (
+                    <div className="bck-fields">
+                      <div className="field">
+                        <label>Tipe Backup</label>
+                        <select value={backupKey} onChange={e => onBackupKeyChange(e.target.value)}>
+                          {hTypes.map(t => (
+                            <option key={t.label} value={t.label}>
+                              {t.label}{t.diff ? ` (${t.diff})` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="field">
+                        <label>Harga Backup</label>
+                        <NumInput value={backupPrice} onChange={setBackupPrice} prefix="Rp" />
+                      </div>
+                      <div className="field">
+                        <label>Diskon Backup</label>
+                        <NumInput value={backupDisc} onChange={setBackupDisc} suffix="%" />
+                      </div>
+                      <div className="comp">
+                        <span className="cl">Nett Backup</span><span className="cv">{rp(bNett)}</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="comp strong">
+                    <span className="cl">Total CAPEX</span><span className="cv">{rp(totCap)}</span>
+                  </div>
+                </div>
+
+                {/* Parameter KSO */}
+                <div className="inp-card">
+                  <div className="inp-card-title">PARAMETER KSO</div>
+                  <div className="field">
+                    <label>Masa KSO</label>
+                    <NumInput value={curSet.kso} onChange={v => updH('kso', v)} suffix="bln" />
+                  </div>
+                  <div className="field">
+                    <label>Test / Bulan</label>
+                    <NumInput value={curSet.tests} onChange={v => updH('tests', v)} />
+                  </div>
+                  <div className="field">
+                    <label>Hari Kerja / Bulan</label>
+                    <NumInput value={workDays} onChange={setWorkDays} suffix="hari" />
+                  </div>
+                  <div className="field">
+                    <label>Margin / Markup</label>
+                    <NumInput value={curSet.markup} onChange={v => updH('markup', v)} suffix="%" />
+                  </div>
+                  <div className="sep" />
+                  <div className="comp">
+                    <span className="cl">Test / Hari</span>
+                    <span className="cv">{D > 0 ? fmt(D) : '—'}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Total Test KSO</span>
+                    <span className="cv">{totTest > 0 ? fmt(totTest) : '—'}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">CAPEX / Test</span>
+                    <span className="cv" style={{ color: 'var(--red)' }}>{rp(capPt)}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Reagen / Test</span>
+                    <span className="cv">{rp(hReagenCpt)}</span>
+                  </div>
+                  {ctrlOverhead > 0 && (
+                    <div className="comp">
+                      <span className="cl">Kontrol+Cal / Test</span>
+                      <span className="cv" style={{ color: 'var(--amber)' }}>{rp(ctrlOverhead)}</span>
+                    </div>
+                  )}
+                  <div className="comp strong">
+                    <span className="cl">Harga Jual / Test</span>
+                    <span className="cv">{rp(sellPrice)}</span>
+                  </div>
+                  <div className="sep" style={{ marginTop: 12 }} />
+                  <button className="goto-btn" onClick={() => setPage('result')}>
+                    Lihat Hasil Perhitungan ▶
+                  </button>
+                </div>
+
+                {/* Harga Reagen */}
+                <div className="inp-card inp-card-reagent">
+                  <div className="inp-card-title">HARGA REAGEN</div>
+                  <div className="rp-list">
+                    {reagents.map(r => {
+                      const obj  = getRpObj(r.id);
+                      const nett = nettOf(obj);
+                      return (
+                        <div key={r.id} className="rp-item">
+                          <div className="rp-name" title={r.fn}>{r.fn}</div>
+                          <div className="rp-pack">{r.pack}</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={obj.price} onChange={v => setRpField(r.id, 'price', v)} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={obj.disc} onChange={v => setRpField(r.id, 'disc', v)} suffix="%" />
+                            </div>
+                          </div>
+                          <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ══ CC INPUT ══ */}
+          {tab === 'cc' && (
+            <CCInputCC
+              cType={cType} setCType={setCType}
+              cSet={cSet[cType]} updC={updC}
+              ups={ups} setUps={setUps}
+              lis={lis} setLis={setLis}
+              backupOn={backupOn} setBackupOn={setBackupOn}
+              backupKey={backupKey}
+              backupPrice={backupPrice} setBackupPrice={setBackupPrice}
+              backupDisc={backupDisc} setBackupDisc={setBackupDisc}
+              onBackupKeyChange={onBackupKeyChange}
+              workDays={workDays} setWorkDays={setWorkDays}
+              aNett={aNett} bNett={bNett} totCap={totCap}
+              capPt={capPt} D={D} totTest={totTest}
+              ccParams={ccParams}
+              updCCParam={updCCParam}
+              addCCParam={addCCParam}
+              delCCParam={delCCParam}
+              ccQC={ccQC} setCCQC={setCCQC}
+              onGoToResult={() => setPage('result')}
+            />
+          )}
+
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════
+          PAGE 2 — HASIL PERHITUNGAN
+      ══════════════════════════════════════════════════════════════ */}
+      {page === 'result' && (
+        <div className="page-body">
+          <div className="result-topbar">
+            <div className="result-config">
+              <span
+                className="merk-dot"
+                style={{
+                  background: tab === 'hemato' ? H_COLORS[hType] : C_COLORS[cType],
+                  width: 10, height: 10, display: 'inline-block', borderRadius: '50%', marginRight: 6,
+                }}
+              />
+              <strong>{tab === 'hemato' ? hType : cType}</strong>
+              {tab === 'hemato' && exzModeLabel && (
+                <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>· {exzModeLabel}</span>
+              )}
+              <span style={{ color: 'var(--text-3)', marginLeft: 12 }}>
+                KSO {curSet.kso} bln · {fmt(curSet.tests)} {tab === 'hemato' ? 'test' : 'sampel'}/bln
+                {tab === 'cc' && curSet.batch > 0 && ` · batch ${fmt(curSet.batch)} sesi/hari`}
+                &nbsp;· markup {curSet.markup}% · Total CAPEX {rp(totCap)}
+              </span>
             </div>
+            <button className="back-btn" onClick={() => setPage('input')}>
+              ◀ Edit Input
+            </button>
           </div>
 
-        </aside>
-
-        <div className="main">
-          {tab === 'hemato' ? <MetricsHemato /> : <MetricsCC />}
-
           {tab === 'hemato' ? (
-            <HematoTable
-              data={HEMATO[hType]} hRes={hRes}
-              capPt={capPt} markup={curSet.markup} D={D}
+            <HematoResult
+              data={HEMATO[hType]}
+              hRes={hRes}
+              capPt={capPt}
+              markup={curSet.markup}
+              D={D}
+              modeLabel={exzModeLabel}
+              hRpData={hRp[hType]}
+              totCap={totCap}
+              totTest={totTest}
+              kso={curSet.kso}
+              ctrl={ctrlOverhead}
             />
           ) : (
-            <CCTable
-              data={CC[cType]} ccPar={ccPar} updCCPar={updCCPar}
-              detRes={detRes} capPt={capPt} markup={curSet.markup}
-              consObjs={ccCons[cType]}
+            <CCResultTable
+              params={ccParams}
+              capPt={capPt}
+              totTest={totTest}
+              cType={cType}
+              ccQC={ccQC}
+              D={D}
+              testsPerMonth={cSet[cType].tests}
             />
           )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
