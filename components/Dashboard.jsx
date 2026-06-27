@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEMATO, CC, CC_P, CC_PANELS } from '../lib/data';
+import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH } from '../lib/data';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -33,9 +33,14 @@ const C_COLORS = {
   EXC200: '#06B6D4',
   EXC400: '#EC4899',
 };
+const XM_COLORS = {
+  LIBO:   '#E11D48',
+  REDCEL: '#2563EB',
+};
 const CAT_COLORS = {
   hemato: '#3B82F6',
   cc:     '#10B981',
+  xm:     '#E11D48',
 };
 const PAN_CLS = {
   Hepatic:    'bh',
@@ -219,6 +224,226 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CrossmatchResult ─────────────────────────────────────────────────────────
+
+function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotTest, kso, xmRpNow }) {
+  const totR = xmRes ? xmRes.total : 0;
+  const base = xmCapPt + totR;
+  const sell = sellOf(base, markup);
+  const markup_amt = sell - base;
+
+  const rows = data.reagents.map(r => {
+    const obj     = xmRpNow[r.id] || { price: 0, disc: 0 };
+    const nettKit = obj.price * (1 - obj.disc / 100);
+    const contrib = xmRes ? (xmRes.pr[r.id] || 0) : 0;
+    const sellKit = markup < 100 && totR > 0
+      ? sell * nettKit / totR
+      : (markup < 100 ? nettKit / (1 - markup / 100) : 0);
+    return { ...r, nettKit, contrib, sellKit };
+  });
+
+  return (
+    <div className="page2-wrap">
+      <div className="cprr-hero">
+        <div className="cprr-label">COST / TEST — KSO CPRR</div>
+        <div className="cprr-sub">
+          {data.label} · {curMethod.label}
+          &nbsp;·&nbsp;{xmTotTest > 0 ? `${fmt(xmTotTest)} test · ${kso} bulan` : '—'}
+          {xmD > 0 ? ` · ${fmt(xmD)} test/hari` : ''}
+        </div>
+        <div className="cprr-val">{xmRes ? rp(sell) : '—'}</div>
+        <div className="cprr-pills">
+          <span className="pill pl-cap">CAPEX/Test: {rp(xmCapPt)}</span>
+          <span className="pill pl-rgn">Reagen/Test: {xmRes ? rp(totR) : '—'}</span>
+          <span className="pill pl-base">Base Cost: {rp(base)}</span>
+          <span className="pill pl-mkp">Markup {markup}%: {xmRes ? rp(markup_amt) : '—'}</span>
+        </div>
+      </div>
+
+      <div className="tbl-section">
+        <div className="tbl-hbar">
+          <span className="tbl-title">Rincian Reagen — {data.label} ({curMethod.label})</span>
+          <span className="tbl-note">
+            {xmD > 0 ? 'Harga Jual/Kit = nett ÷ (1−markup) · proporsional' : 'Lengkapi input di halaman sebelumnya'}
+          </span>
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama Barang</th>
+                <th>Kemasan</th>
+                <th className="r">Kontrib/Test</th>
+                <th className="r th-sell">Harga Jual/Kit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 600 }}>{r.fn}</td>
+                  <td style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
+                  <td className="cpt">{xmRes ? fmt(r.contrib) : '—'}</td>
+                  <td className="r td-sell">{xmRes ? rp(r.sellKit) : '—'}</td>
+                </tr>
+              ))}
+              <tr className="tr-sub">
+                <td colSpan={2}>Total Biaya Reagen / Test</td>
+                <td className="cpt">{xmRes ? fmt(totR) : '—'}</td>
+                <td style={{ background: '#F1F5F9' }}></td>
+              </tr>
+              <tr className="tr-capex">
+                <td colSpan={2} style={{ color: 'var(--red)' }}>
+                  + CAPEX / Test&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
+                    ({fmt(xmTotTest)} test KSO)
+                  </span>
+                </td>
+                <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(xmCapPt)}</td>
+                <td style={{ background: '#FFF5F5' }}></td>
+              </tr>
+              <tr className="tr-base">
+                <td colSpan={2}>Base Cost / Test (sebelum markup)</td>
+                <td className="cpt">{xmRes ? rp(base) : '—'}</td>
+                <td style={{ background: '#F8FAFC' }}></td>
+              </tr>
+              <tr className="tr-sell tr-sell-big">
+                <td colSpan={2}>
+                  Cost / Test KSO CPRR&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11 }}>margin {markup}%</span>
+                </td>
+                <td className="cpt" style={{ fontSize: 16, fontWeight: 900, color: 'var(--blue)' }}>
+                  {xmRes ? rp(sell) : '—'}
+                </td>
+                <td style={{ background: 'var(--blue2)' }}></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CrossmatchInput ──────────────────────────────────────────────────────────
+
+function CrossmatchInput({
+  xmType, xmCurSet, updXm,
+  xmUps, setXmUps, xmLis, setXmLis,
+  xmRpNow, updXmRp,
+  workDays, setWorkDays,
+  xmCapex, xmTotTest, xmCapPt, xmD,
+  xmRes, xmSell,
+  onGoToResult,
+}) {
+  const data = CROSSMATCH[xmType];
+  return (
+    <div className="input-grid">
+      {/* CAPEX */}
+      <div className="inp-card">
+        <div className="inp-card-title">CAPEX</div>
+        <div className="field">
+          <label>Harga Alat (Total Peralatan)</label>
+          <NumInput value={xmCurSet.price} onChange={v => updXm('price', v)} prefix="Rp" />
+        </div>
+        <div className="field">
+          <label>Diskon</label>
+          <NumInput value={xmCurSet.disc} onChange={v => updXm('disc', v)} suffix="%" />
+        </div>
+        <div className="comp">
+          <span className="cl">Nett Alat</span>
+          <span className="cv">{rp(xmCurSet.price * (1 - xmCurSet.disc / 100))}</span>
+        </div>
+        <div className="field">
+          <label>UPS</label>
+          <NumInput value={xmUps} onChange={setXmUps} prefix="Rp" />
+        </div>
+        <div className="field">
+          <label>LIS</label>
+          <NumInput value={xmLis} onChange={setXmLis} prefix="Rp" />
+        </div>
+        <div className="comp strong">
+          <span className="cl">Total CAPEX</span>
+          <span className="cv">{rp(xmCapex)}</span>
+        </div>
+      </div>
+
+      {/* KSO Params */}
+      <div className="inp-card">
+        <div className="inp-card-title">PARAMETER KSO</div>
+        <div className="field">
+          <label>Masa KSO</label>
+          <NumInput value={xmCurSet.kso} onChange={v => updXm('kso', v)} suffix="bln" />
+        </div>
+        <div className="field">
+          <label>Test / Bulan</label>
+          <NumInput value={xmCurSet.tests} onChange={v => updXm('tests', v)} />
+        </div>
+        <div className="field">
+          <label>Hari Kerja / Bulan</label>
+          <NumInput value={workDays} onChange={setWorkDays} suffix="hari" />
+        </div>
+        <div className="field">
+          <label>Margin / Markup</label>
+          <NumInput value={xmCurSet.markup} onChange={v => updXm('markup', v)} suffix="%" />
+        </div>
+        <div className="sep" />
+        <div className="comp">
+          <span className="cl">Test / Hari</span>
+          <span className="cv">{xmD > 0 ? fmt(xmD) : '—'}</span>
+        </div>
+        <div className="comp">
+          <span className="cl">Total Test KSO</span>
+          <span className="cv">{xmTotTest > 0 ? fmt(xmTotTest) : '—'}</span>
+        </div>
+        <div className="comp">
+          <span className="cl">CAPEX / Test</span>
+          <span className="cv" style={{ color: 'var(--red)' }}>{rp(xmCapPt)}</span>
+        </div>
+        <div className="comp">
+          <span className="cl">Reagen / Test</span>
+          <span className="cv">{xmRes ? rp(xmRes.total) : '—'}</span>
+        </div>
+        <div className="comp strong">
+          <span className="cl">Harga Jual / Test</span>
+          <span className="cv">{rp(xmSell)}</span>
+        </div>
+        <div className="sep" style={{ marginTop: 12 }} />
+        <button className="goto-btn" onClick={onGoToResult}>
+          Lihat Hasil Perhitungan ▶
+        </button>
+      </div>
+
+      {/* Reagent Prices */}
+      <div className="inp-card inp-card-reagent">
+        <div className="inp-card-title">HARGA REAGEN</div>
+        <div className="rp-list">
+          {data.reagents.map(r => {
+            const obj  = xmRpNow[r.id] || { price: 0, disc: 0 };
+            const nett = obj.price * (1 - obj.disc / 100);
+            return (
+              <div key={r.id} className="rp-item">
+                <div className="rp-name" title={r.fn}>{r.fn}</div>
+                <div className="rp-pack">{r.pack}</div>
+                <div className="rp-row2">
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Harga Beli</label>
+                    <NumInput value={obj.price} onChange={v => updXmRp(r.id, 'price', v)} prefix="Rp" />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Diskon</label>
+                    <NumInput value={obj.disc} onChange={v => updXmRp(r.id, 'disc', v)} suffix="%" />
+                  </div>
+                </div>
+                <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -712,6 +937,22 @@ function initHRp() {
     EXZ6000: { dn: {price:2000000,disc:0}, ldi: {price:2600000,disc:0}, ldii: {price:3250000,disc:0}, lb: {price:2250000,disc:0}, probe: {price:400000,disc:0} },
   };
 }
+function initXmSet() {
+  return {
+    LIBO:   { price: 46564500, disc: 0, kso: 60, markup: 20, tests: 100 },
+    REDCEL: { price: 0,        disc: 0, kso: 60, markup: 20, tests: 100 },
+  };
+}
+function initXmMethod() {
+  return { LIBO: 'm3', REDCEL: 'xm' };
+}
+function initXmRp() {
+  return {
+    LIBO:   { card: { price: 2214000, disc: 0 }, liss: { price: 1107000, disc: 0 } },
+    REDCEL: { ahg:  { price: 3885000, disc: 0 }, liss: { price: 2500000, disc: 0 } },
+  };
+}
+
 function initCCParams() {
   const base = CC_P.map(p => ({
     id:          `cc_${p.no}`,
@@ -757,6 +998,12 @@ export default function Dashboard() {
   });
   const [ccParams,    setCCParams]    = useState(initCCParams);
   const [ccQC,        setCCQC]        = useState({ n_param: 10, n_cal: 2 });
+  const [xmType,      setXmType]      = useState('LIBO');
+  const [xmMethod,    setXmMethod]    = useState(initXmMethod);
+  const [xmSet,       setXmSet]       = useState(initXmSet);
+  const [xmRp,        setXmRp]        = useState(initXmRp);
+  const [xmUps,       setXmUps]       = useState(0);
+  const [xmLis,       setXmLis]       = useState(0);
 
   // ── CAPEX ──
   const curSet  = tab === 'hemato' ? hSet[hType] : cSet[cType];
@@ -766,6 +1013,21 @@ export default function Dashboard() {
   const totTest = curSet.kso * curSet.tests;
   const capPt   = totTest > 0 ? totCap / totTest : 0;
   const D       = workDays > 0 ? curSet.tests / workDays : 0;
+
+  // ── Crossmatch computed ──
+  const xmCurSet   = xmSet[xmType];
+  const xmANett    = xmCurSet.price * (1 - xmCurSet.disc / 100);
+  const xmCapex    = xmANett + xmUps + xmLis;
+  const xmTotTest  = xmCurSet.kso * xmCurSet.tests;
+  const xmCapPt    = xmTotTest > 0 ? xmCapex / xmTotTest : 0;
+  const xmD        = workDays > 0 ? xmCurSet.tests / workDays : 0;
+  const xmCurMethod = CROSSMATCH[xmType].methods.find(m => m.id === xmMethod[xmType]) || CROSSMATCH[xmType].methods[0];
+  const xmRpNettMap = {};
+  Object.entries(xmRp[xmType]).forEach(([id, obj]) => { xmRpNettMap[id] = nettOf(obj); });
+  const xmRes = xmD > 0
+    ? CROSSMATCH[xmType].calc(xmCurSet.tests, workDays, xmRpNettMap, xmMethod[xmType])
+    : null;
+  const xmSell = sellOf(xmCapPt + (xmRes ? xmRes.total : 0), xmCurSet.markup);
 
   // ── Reagent nett maps (hemato) ──
   const rpNettMap = {};
@@ -781,6 +1043,9 @@ export default function Dashboard() {
   const updH  = (f, v) => setHSet(p  => ({ ...p, [hType]: { ...p[hType], [f]: v } }));
   const updC  = (f, v) => setCSet(p  => ({ ...p, [cType]: { ...p[cType], [f]: v } }));
   const updHRp = (id, fld, v) => setHRp(p => ({ ...p, [hType]: { ...p[hType], [id]: { ...p[hType][id], [fld]: v } } }));
+  const updXm  = (f, v) => setXmSet(p => ({ ...p, [xmType]: { ...p[xmType], [f]: v } }));
+  const updXmRp = (id, fld, v) => setXmRp(p => ({ ...p, [xmType]: { ...p[xmType], [id]: { ...p[xmType][id], [fld]: v } } }));
+  const updXmMethod = (m) => setXmMethod(prev => ({ ...prev, [xmType]: m }));
 
   const updCCParam = (id, field, value) =>
     setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -837,7 +1102,7 @@ export default function Dashboard() {
           <span className="brand-t">KSO Running Cost Simulator</span>
         </div>
         <div className="hdr-r">
-          Hematologi &amp; Kimia Klinik<br />Wahana Lifeline · 2026
+          Hematologi · Kimia Klinik · Crossmatch<br />Wahana Lifeline · 2026
         </div>
       </header>
 
@@ -870,6 +1135,8 @@ export default function Dashboard() {
               active={tab === 'hemato'} onClick={() => setTab('hemato')} />
             <MerkPill label="Kimia Klinik" color={CAT_COLORS.cc}
               active={tab === 'cc'} onClick={() => setTab('cc')} />
+            <MerkPill label="Crossmatch" color={CAT_COLORS.xm}
+              active={tab === 'xm'} onClick={() => setTab('xm')} />
           </div>
 
           {/* ══ HEMATO INPUT ══ */}
@@ -1153,6 +1420,42 @@ export default function Dashboard() {
             />
           )}
 
+          {/* ══ CROSSMATCH INPUT ══ */}
+          {tab === 'xm' && (
+            <>
+              <div className="sel-row">
+                <span className="sel-label">PILIH MERK</span>
+                {Object.values(CROSSMATCH).map(t => (
+                  <MerkPill key={t.label} label={t.label} color={XM_COLORS[t.label]}
+                    active={xmType === t.label} onClick={() => setXmType(t.label)} sub={t.brand} />
+                ))}
+              </div>
+              <div className="sel-row">
+                <span className="sel-label">METODE</span>
+                {CROSSMATCH[xmType].methods.map(m => (
+                  <MerkPill key={m.id} label={m.label} color={XM_COLORS[xmType]}
+                    active={xmMethod[xmType] === m.id} onClick={() => updXmMethod(m.id)} />
+                ))}
+                <span className="sel-desc">
+                  {xmCurMethod.cols} {xmType === 'LIBO' ? 'well' : 'kolom'}/test · {xmCurMethod.liss_ml} mL LISS/test
+                </span>
+              </div>
+              <CrossmatchInput
+                xmType={xmType}
+                xmCurSet={xmCurSet}
+                updXm={updXm}
+                xmUps={xmUps} setXmUps={setXmUps}
+                xmLis={xmLis} setXmLis={setXmLis}
+                xmRpNow={xmRp[xmType]}
+                updXmRp={updXmRp}
+                workDays={workDays} setWorkDays={setWorkDays}
+                xmCapex={xmCapex} xmTotTest={xmTotTest} xmCapPt={xmCapPt} xmD={xmD}
+                xmRes={xmRes} xmSell={xmSell}
+                onGoToResult={() => setPage('result')}
+              />
+            </>
+          )}
+
         </div>
       )}
 
@@ -1166,18 +1469,26 @@ export default function Dashboard() {
               <span
                 className="merk-dot"
                 style={{
-                  background: tab === 'hemato' ? H_COLORS[hType] : C_COLORS[cType],
+                  background: tab === 'hemato' ? H_COLORS[hType] : tab === 'cc' ? C_COLORS[cType] : XM_COLORS[xmType],
                   width: 10, height: 10, display: 'inline-block', borderRadius: '50%', marginRight: 6,
                 }}
               />
-              <strong>{tab === 'hemato' ? hType : cType}</strong>
+              <strong>{tab === 'hemato' ? hType : tab === 'cc' ? cType : xmType}</strong>
               {tab === 'hemato' && exzModeLabel && (
                 <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>· {exzModeLabel}</span>
               )}
+              {tab === 'xm' && (
+                <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>· {xmCurMethod.label}</span>
+              )}
               <span style={{ color: 'var(--text-3)', marginLeft: 12 }}>
-                KSO {curSet.kso} bln · {fmt(curSet.tests)} {tab === 'hemato' ? 'test' : 'sampel'}/bln
-                {tab === 'cc' && curSet.batch > 0 && ` · batch ${fmt(curSet.batch)} sesi/hari`}
-                &nbsp;· markup {curSet.markup}% · Total CAPEX {rp(totCap)}
+                {tab === 'xm'
+                  ? `KSO ${xmCurSet.kso} bln · ${fmt(xmCurSet.tests)} test/bln · markup ${xmCurSet.markup}% · Total CAPEX ${rp(xmCapex)}`
+                  : <>
+                      KSO {curSet.kso} bln · {fmt(curSet.tests)} {tab === 'hemato' ? 'test' : 'sampel'}/bln
+                      {tab === 'cc' && curSet.batch > 0 && ` · batch ${fmt(curSet.batch)} sesi/hari`}
+                      &nbsp;· markup {curSet.markup}% · Total CAPEX {rp(totCap)}
+                    </>
+                }
               </span>
             </div>
             <button className="back-btn" onClick={() => setPage('input')}>
@@ -1199,7 +1510,7 @@ export default function Dashboard() {
               kso={curSet.kso}
               ctrl={ctrlOverhead}
             />
-          ) : (
+          ) : tab === 'cc' ? (
             <CCResultTable
               params={ccParams}
               capPt={capPt}
@@ -1208,6 +1519,18 @@ export default function Dashboard() {
               ccQC={ccQC}
               D={D}
               testsPerMonth={cSet[cType].tests}
+            />
+          ) : (
+            <CrossmatchResult
+              data={CROSSMATCH[xmType]}
+              xmRes={xmRes}
+              xmCapPt={xmCapPt}
+              markup={xmCurSet.markup}
+              xmD={xmD}
+              curMethod={xmCurMethod}
+              xmTotTest={xmTotTest}
+              kso={xmCurSet.kso}
+              xmRpNow={xmRp[xmType]}
             />
           )}
         </div>
