@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH } from '../lib/data';
+import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P } from '../lib/data';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -37,10 +37,30 @@ const XM_COLORS = {
   LIBO:   '#E11D48',
   REDCEL: '#2563EB',
 };
+const CLIA_COLORS = {
+  SNIBE:  '#7C3AED',
+  WONDFO: '#0891B2',
+};
 const CAT_COLORS = {
   hemato: '#3B82F6',
   cc:     '#10B981',
   xm:     '#E11D48',
+  clia:   '#7C3AED',
+};
+const PAN_CLS_CLIA = {
+  'Cardiac/IGD':     'bc',
+  'Infeksi':         'bctrl',
+  'Diabetes':        'bm',
+  'Sepsis/Inflam':   'br',
+  'Thyroid':         'bh',
+  'Anemia/Bone':     'bl',
+  'Fertility/Hormon':'bcons',
+  'Dengue':          'bc',
+  'Infectious':      'bctrl',
+  'Fertility':       'bm',
+  'Tumour':          'br',
+  'Critical':        'bc',
+  'Metabolism':      'bl',
 };
 const PAN_CLS = {
   Hepatic:    'bh',
@@ -445,6 +465,265 @@ function CrossmatchInput({
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CLIAResultTable ──────────────────────────────────────────────────────────
+
+function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, cliaParamsNow }) {
+  const panels = CLIA_PANELS[cliaType];
+  const paramList = cliaType === 'SNIBE' ? SNIBE_P : WONDFO_P;
+  let seq = 0;
+  return (
+    <div className="page2-wrap">
+      <div className="tbl-section">
+        <div className="tbl-hbar">
+          <span className="tbl-title">Rincian Cost / Test — {CLIA[cliaType].brand}</span>
+          <span className="tbl-note">Cost/Test = Beban Alat + Beban Konsumabel + HPP Reagen/Kit</span>
+        </div>
+        <div style={{ display: 'flex', gap: 20, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid var(--bdr)', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11 }}>
+            <span style={{ color: 'var(--text-3)' }}>Beban Alat/Test:</span>
+            <strong style={{ color: 'var(--red)', marginLeft: 4 }}>{rp(cliaCapPt)}</strong>
+          </span>
+          <span style={{ fontSize: 11 }}>
+            <span style={{ color: 'var(--text-3)' }}>Konsumabel/Test (non-inf):</span>
+            <strong style={{ marginLeft: 4 }}>{rp(cliaConsBase)}</strong>
+          </span>
+          {cliaType === 'WONDFO' && (
+            <span style={{ fontSize: 11 }}>
+              <span style={{ color: 'var(--text-3)' }}>Konsumabel/Test (infectious):</span>
+              <strong style={{ color: 'var(--amber)', marginLeft: 4 }}>{rp(cliaConsInf)}</strong>
+            </span>
+          )}
+          <span style={{ fontSize: 11 }}>
+            <span style={{ color: 'var(--text-3)' }}>Total Test KSO:</span>
+            <strong style={{ marginLeft: 4 }}>{fmt(totTest)}</strong>
+          </span>
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ width: 32 }}>No</th>
+                <th>Parameter</th>
+                <th>Panel</th>
+                <th className="r">Kit</th>
+                <th className="r">HPP/Kit</th>
+                <th className="r">Konsumabel/Test</th>
+                <th className="r">Cost/Test</th>
+                <th className="r th-sell">Sell/Test</th>
+              </tr>
+            </thead>
+            <tbody>
+              {panels.map(panel => {
+                const rows = paramList.filter(p => p.pan === panel);
+                if (rows.length === 0) return null;
+                const cls = PAN_CLS_CLIA[panel] || 'bc';
+                return [
+                  <tr key={`ph-${panel}`} className="tr-panel-hdr">
+                    <td colSpan={8}><span className={`badge ${cls}`}>{panel}</span></td>
+                  </tr>,
+                  ...rows.map(p => {
+                    seq += 1;
+                    const obj = cliaParamsNow[`${cliaType === 'SNIBE' ? 's' : 'w'}_${p.no}`] || { price: p.dp, disc: 0 };
+                    const nettKit = obj.price * (1 - obj.disc / 100);
+                    const hppPerTest = p.kit > 0 ? nettKit / p.kit : 0;
+                    const consPerTest = (p.inf && cliaType === 'WONDFO') ? cliaConsInf : cliaConsBase;
+                    const costTest = cliaCapPt + consPerTest + hppPerTest;
+                    const sellTest = sellOf(costTest, markup);
+                    return (
+                      <tr key={p.no}>
+                        <td style={{ color: 'var(--text-3)' }}>{seq}</td>
+                        <td style={{ fontWeight: 700 }}>{p.name}</td>
+                        <td><span className={`badge ${cls}`}>{panel}</span></td>
+                        <td className="r">{p.kit}T</td>
+                        <td className="r td-sell">{rp(nettKit)}</td>
+                        <td className="r" style={{ color: p.inf && cliaType === 'WONDFO' ? 'var(--amber)' : '' }}>
+                          {rp(consPerTest)}
+                        </td>
+                        <td className="cpt">{rp(costTest)}</td>
+                        <td className="r td-sell">{rp(sellTest)}</td>
+                      </tr>
+                    );
+                  }),
+                ];
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CLIAInput ────────────────────────────────────────────────────────────────
+
+function CLIAInput({
+  cliaType, cliaCurSet, updClia,
+  cliaUps, setCliaUps, cliaLis, setCliaLis,
+  cliaCapex, cliaTotTest, cliaCapPt,
+  cliaConsBase, cliaConsInf,
+  cliaConsNow, updCliaCons,
+  cliaParamsNow, updCliaParam,
+  markup,
+  onGoToResult,
+}) {
+  const data = CLIA[cliaType];
+  const paramList = cliaType === 'SNIBE' ? SNIBE_P : WONDFO_P;
+  const panels = CLIA_PANELS[cliaType];
+
+  return (
+    <div>
+      <div className="input-grid">
+        {/* CAPEX */}
+        <div className="inp-card">
+          <div className="inp-card-title">CAPEX</div>
+          <div className="field">
+            <label>Harga Alat</label>
+            <NumInput value={cliaCurSet.price} onChange={v => updClia('price', v)} prefix="Rp" />
+          </div>
+          <div className="field">
+            <label>Diskon</label>
+            <NumInput value={cliaCurSet.disc} onChange={v => updClia('disc', v)} suffix="%" />
+          </div>
+          <div className="comp">
+            <span className="cl">Nett Alat</span>
+            <span className="cv">{rp(cliaCurSet.price * (1 - cliaCurSet.disc / 100))}</span>
+          </div>
+          <div className="field">
+            <label>UPS</label>
+            <NumInput value={cliaUps} onChange={setCliaUps} prefix="Rp" />
+          </div>
+          <div className="field">
+            <label>LIS</label>
+            <NumInput value={cliaLis} onChange={setCliaLis} prefix="Rp" />
+          </div>
+          <div className="comp strong">
+            <span className="cl">Total CAPEX</span>
+            <span className="cv">{rp(cliaCapex)}</span>
+          </div>
+        </div>
+
+        {/* KSO Params */}
+        <div className="inp-card">
+          <div className="inp-card-title">PARAMETER KSO</div>
+          <div className="field">
+            <label>Masa KSO</label>
+            <NumInput value={cliaCurSet.kso} onChange={v => updClia('kso', v)} suffix="bln" />
+          </div>
+          <div className="field">
+            <label>Test / Bulan</label>
+            <NumInput value={cliaCurSet.tests} onChange={v => updClia('tests', v)} />
+          </div>
+          <div className="field">
+            <label>Margin / Markup</label>
+            <NumInput value={cliaCurSet.markup} onChange={v => updClia('markup', v)} suffix="%" />
+          </div>
+          <div className="sep" />
+          <div className="comp">
+            <span className="cl">Total Test KSO</span>
+            <span className="cv">{cliaTotTest > 0 ? fmt(cliaTotTest) : '—'}</span>
+          </div>
+          <div className="comp">
+            <span className="cl">CAPEX / Test</span>
+            <span className="cv" style={{ color: 'var(--red)' }}>{rp(cliaCapPt)}</span>
+          </div>
+          <div className="comp">
+            <span className="cl">Konsumabel / Test</span>
+            <span className="cv">{rp(cliaConsBase)}</span>
+          </div>
+          {cliaType === 'WONDFO' && (
+            <div className="comp">
+              <span className="cl">Kons. Infectious / Test</span>
+              <span className="cv" style={{ color: 'var(--amber)' }}>{rp(cliaConsInf)}</span>
+            </div>
+          )}
+          <div className="sep" style={{ marginTop: 12 }} />
+          <button className="goto-btn" onClick={onGoToResult}>
+            Lihat Hasil Perhitungan ▶
+          </button>
+        </div>
+
+        {/* Consumable Prices */}
+        <div className="inp-card inp-card-reagent">
+          <div className="inp-card-title">HARGA KONSUMABEL</div>
+          <div className="rp-list">
+            {data.cons.map(c => {
+              const obj = cliaConsNow[c.id] || { price: c.dp, yield: c.yield };
+              const nett = obj.price;
+              const cpt  = obj.yield > 0 ? nett / obj.yield : 0;
+              return (
+                <div key={c.id} className="rp-item">
+                  <div className="rp-name" title={c.fn}>
+                    {c.fn}
+                    {c.inf && <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--amber)', fontWeight: 700 }}>INFECTIOUS</span>}
+                  </div>
+                  <div className="rp-pack">{c.pack}</div>
+                  <div className="rp-row2">
+                    <div className="field" style={{ margin: 0 }}>
+                      <label>Harga / Pack</label>
+                      <NumInput value={obj.price} onChange={v => updCliaCons(c.id, 'price', v)} prefix="Rp" />
+                    </div>
+                    <div className="field" style={{ margin: 0 }}>
+                      <label>Yield / Pack</label>
+                      <NumInput value={obj.yield} onChange={v => updCliaCons(c.id, 'yield', v)} suffix="test" />
+                    </div>
+                  </div>
+                  <div className="rp-nett">Cost/Test: <span>{rp(cpt)}</span></div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Parameter HPP Prices */}
+      <div className="inp-card cc-param-card" style={{ marginTop: 16 }}>
+        <div className="inp-card-title">HARGA REAGEN / HPP PER KIT</div>
+        <div className="cc-param-table-hdr">
+          <span style={{ flex: 3 }}>Parameter</span>
+          <span style={{ width: 44, textAlign: 'right' }}>Kit</span>
+          <span style={{ width: 90, textAlign: 'right' }}>HPP/Kit</span>
+          <span style={{ width: 52, textAlign: 'right' }}>Disc%</span>
+          {cliaType === 'WONDFO' && <span style={{ width: 54, textAlign: 'center' }}>Inf</span>}
+        </div>
+        {panels.map(panel => {
+          const items = paramList.filter(p => p.pan === panel);
+          if (!items.length) return null;
+          const cls = PAN_CLS_CLIA[panel] || 'bc';
+          return (
+            <div key={panel} className="cc-param-group">
+              <div className="cc-param-group-hdr">
+                <span className={`badge ${cls}`}>{panel}</span>
+              </div>
+              {items.map(p => {
+                const pid = `${cliaType === 'SNIBE' ? 's' : 'w'}_${p.no}`;
+                const obj = cliaParamsNow[pid] || { price: p.dp, disc: 0 };
+                return (
+                  <div key={pid} className="cc-param-row">
+                    <span className="cc-pr-name">{p.name}</span>
+                    <span className="cc-pr-t">{p.kit}T</span>
+                    <span className="cc-pr-num">
+                      <SmallNumInput value={obj.price} onChange={v => updCliaParam(pid, 'price', v)} />
+                    </span>
+                    <span className="cc-pr-disc">
+                      <SmallNumInput value={obj.disc} onChange={v => updCliaParam(pid, 'disc', v)} tiny />
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>%</span>
+                    </span>
+                    {cliaType === 'WONDFO' && (
+                      <span style={{ width: 54, textAlign: 'center', fontSize: 10 }}>
+                        {p.inf ? <span style={{ color: 'var(--amber)', fontWeight: 700 }}>●</span> : '—'}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -953,6 +1232,29 @@ function initXmRp() {
   };
 }
 
+function initCliaSet() {
+  return {
+    SNIBE:  { price: 375000000, disc: 0, kso: 60, markup: 45, tests: 3200 },
+    WONDFO: { price: 0,         disc: 0, kso: 60, markup: 30, tests: 3200 },
+  };
+}
+function initCliaCons() {
+  const build = (brand) => {
+    const obj = {};
+    CLIA[brand].cons.forEach(c => { obj[c.id] = { price: c.dp, yield: c.yield }; });
+    return obj;
+  };
+  return { SNIBE: build('SNIBE'), WONDFO: build('WONDFO') };
+}
+function initCliaParams() {
+  const build = (prefix, list) => {
+    const obj = {};
+    list.forEach(p => { obj[`${prefix}_${p.no}`] = { price: p.dp, disc: 0 }; });
+    return obj;
+  };
+  return { SNIBE: build('s', SNIBE_P), WONDFO: build('w', WONDFO_P) };
+}
+
 function initCCParams() {
   const base = CC_P.map(p => ({
     id:          `cc_${p.no}`,
@@ -1004,6 +1306,12 @@ export default function Dashboard() {
   const [xmRp,        setXmRp]        = useState(initXmRp);
   const [xmUps,       setXmUps]       = useState(0);
   const [xmLis,       setXmLis]       = useState(0);
+  const [cliaType,    setCliaType]    = useState('SNIBE');
+  const [cliaSet,     setCliaSet]     = useState(initCliaSet);
+  const [cliaUps,     setCliaUps]     = useState(20000000);
+  const [cliaLis,     setCliaLis]     = useState(0);
+  const [cliaCons,    setCliaCons]    = useState(initCliaCons);
+  const [cliaParams,  setCliaParams]  = useState(initCliaParams);
 
   // ── CAPEX ──
   const curSet  = tab === 'hemato' ? hSet[hType] : cSet[cType];
@@ -1029,6 +1337,26 @@ export default function Dashboard() {
     : null;
   const xmSell = sellOf(xmCapPt + (xmRes ? xmRes.total : 0), xmCurSet.markup);
 
+  // ── CLIA computed ──
+  const cliaCurSet  = cliaSet[cliaType];
+  const cliaANett   = cliaCurSet.price * (1 - cliaCurSet.disc / 100);
+  const cliaCapex   = cliaANett + cliaUps + cliaLis;
+  const cliaTotTest = cliaCurSet.kso * cliaCurSet.tests;
+  const cliaCapPt   = cliaTotTest > 0 ? cliaCapex / cliaTotTest : 0;
+  const cliaConsNow = cliaCons[cliaType];
+  const cliaConsBase = CLIA[cliaType].cons
+    .filter(c => !c.inf)
+    .reduce((s, c) => {
+      const cv = cliaConsNow[c.id] || { price: c.dp, yield: c.yield };
+      return s + (cv.yield > 0 ? cv.price / cv.yield : 0);
+    }, 0);
+  const iwashCons = CLIA[cliaType].cons.find(c => c.inf);
+  const iwashCpt = iwashCons
+    ? (() => { const cv = cliaConsNow[iwashCons.id] || { price: iwashCons.dp, yield: iwashCons.yield }; return cv.yield > 0 ? cv.price / cv.yield : 0; })()
+    : 0;
+  const cliaConsInf = cliaConsBase + iwashCpt;
+  const cliaParamsNow = cliaParams[cliaType];
+
   // ── Reagent nett maps (hemato) ──
   const rpNettMap = {};
   Object.entries(hRp[hType]).forEach(([id, obj]) => { rpNettMap[id] = nettOf(obj); });
@@ -1046,6 +1374,10 @@ export default function Dashboard() {
   const updXm  = (f, v) => setXmSet(p => ({ ...p, [xmType]: { ...p[xmType], [f]: v } }));
   const updXmRp = (id, fld, v) => setXmRp(p => ({ ...p, [xmType]: { ...p[xmType], [id]: { ...p[xmType][id], [fld]: v } } }));
   const updXmMethod = (m) => setXmMethod(prev => ({ ...prev, [xmType]: m }));
+
+  const updClia     = (f, v) => setCliaSet(p => ({ ...p, [cliaType]: { ...p[cliaType], [f]: v } }));
+  const updCliaCons = (id, fld, v) => setCliaCons(p => ({ ...p, [cliaType]: { ...p[cliaType], [id]: { ...p[cliaType][id], [fld]: v } } }));
+  const updCliaParam = (pid, fld, v) => setCliaParams(p => ({ ...p, [cliaType]: { ...p[cliaType], [pid]: { ...p[cliaType][pid], [fld]: v } } }));
 
   const updCCParam = (id, field, value) =>
     setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -1102,7 +1434,7 @@ export default function Dashboard() {
           <span className="brand-t">KSO Running Cost Simulator</span>
         </div>
         <div className="hdr-r">
-          Hematologi · Kimia Klinik · Crossmatch<br />Wahana Lifeline · 2026
+          Hematologi · Kimia Klinik · Crossmatch · CLIA<br />Wahana Lifeline · 2026
         </div>
       </header>
 
@@ -1137,6 +1469,8 @@ export default function Dashboard() {
               active={tab === 'cc'} onClick={() => setTab('cc')} />
             <MerkPill label="Crossmatch" color={CAT_COLORS.xm}
               active={tab === 'xm'} onClick={() => setTab('xm')} />
+            <MerkPill label="CLIA" color={CAT_COLORS.clia}
+              active={tab === 'clia'} onClick={() => setTab('clia')} />
           </div>
 
           {/* ══ HEMATO INPUT ══ */}
@@ -1456,6 +1790,32 @@ export default function Dashboard() {
             </>
           )}
 
+          {/* ══ CLIA INPUT ══ */}
+          {tab === 'clia' && (
+            <>
+              <div className="sel-row">
+                <span className="sel-label">PILIH MERK</span>
+                {Object.values(CLIA).map(t => (
+                  <MerkPill key={t.label} label={t.label} color={CLIA_COLORS[t.label]}
+                    active={cliaType === t.label} onClick={() => setCliaType(t.label)} sub={t.brand} />
+                ))}
+              </div>
+              <CLIAInput
+                cliaType={cliaType}
+                cliaCurSet={cliaCurSet}
+                updClia={updClia}
+                cliaUps={cliaUps} setCliaUps={setCliaUps}
+                cliaLis={cliaLis} setCliaLis={setCliaLis}
+                cliaCapex={cliaCapex} cliaTotTest={cliaTotTest} cliaCapPt={cliaCapPt}
+                cliaConsBase={cliaConsBase} cliaConsInf={cliaConsInf}
+                cliaConsNow={cliaConsNow} updCliaCons={updCliaCons}
+                cliaParamsNow={cliaParamsNow} updCliaParam={updCliaParam}
+                markup={cliaCurSet.markup}
+                onGoToResult={() => setPage('result')}
+              />
+            </>
+          )}
+
         </div>
       )}
 
@@ -1469,11 +1829,14 @@ export default function Dashboard() {
               <span
                 className="merk-dot"
                 style={{
-                  background: tab === 'hemato' ? H_COLORS[hType] : tab === 'cc' ? C_COLORS[cType] : XM_COLORS[xmType],
+                  background: tab === 'hemato' ? H_COLORS[hType]
+                    : tab === 'cc' ? C_COLORS[cType]
+                    : tab === 'xm' ? XM_COLORS[xmType]
+                    : CLIA_COLORS[cliaType],
                   width: 10, height: 10, display: 'inline-block', borderRadius: '50%', marginRight: 6,
                 }}
               />
-              <strong>{tab === 'hemato' ? hType : tab === 'cc' ? cType : xmType}</strong>
+              <strong>{tab === 'hemato' ? hType : tab === 'cc' ? cType : tab === 'xm' ? xmType : CLIA[cliaType].brand}</strong>
               {tab === 'hemato' && exzModeLabel && (
                 <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>· {exzModeLabel}</span>
               )}
@@ -1483,6 +1846,8 @@ export default function Dashboard() {
               <span style={{ color: 'var(--text-3)', marginLeft: 12 }}>
                 {tab === 'xm'
                   ? `KSO ${xmCurSet.kso} bln · ${fmt(xmCurSet.tests)} test/bln · markup ${xmCurSet.markup}% · Total CAPEX ${rp(xmCapex)}`
+                  : tab === 'clia'
+                  ? `KSO ${cliaCurSet.kso} bln · ${fmt(cliaCurSet.tests)} test/bln · markup ${cliaCurSet.markup}% · CAPEX ${rp(cliaCapex)} · Kons/test ${rp(cliaConsBase)}`
                   : <>
                       KSO {curSet.kso} bln · {fmt(curSet.tests)} {tab === 'hemato' ? 'test' : 'sampel'}/bln
                       {tab === 'cc' && curSet.batch > 0 && ` · batch ${fmt(curSet.batch)} sesi/hari`}
@@ -1520,7 +1885,7 @@ export default function Dashboard() {
               D={D}
               testsPerMonth={cSet[cType].tests}
             />
-          ) : (
+          ) : tab === 'xm' ? (
             <CrossmatchResult
               data={CROSSMATCH[xmType]}
               xmRes={xmRes}
@@ -1531,6 +1896,17 @@ export default function Dashboard() {
               xmTotTest={xmTotTest}
               kso={xmCurSet.kso}
               xmRpNow={xmRp[xmType]}
+            />
+          ) : (
+            <CLIAResultTable
+              cliaType={cliaType}
+              cliaCapPt={cliaCapPt}
+              cliaConsBase={cliaConsBase}
+              cliaConsInf={cliaConsInf}
+              markup={cliaCurSet.markup}
+              totTest={cliaTotTest}
+              kso={cliaCurSet.kso}
+              cliaParamsNow={cliaParamsNow}
             />
           )}
         </div>
