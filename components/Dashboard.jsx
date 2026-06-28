@@ -1795,9 +1795,9 @@ export default function Dashboard() {
             <>
               <div className="sel-row">
                 <span className="sel-label">PILIH MERK</span>
-                {Object.values(CLIA).map(t => (
-                  <MerkPill key={t.label} label={t.label} color={CLIA_COLORS[t.label]}
-                    active={cliaType === t.label} onClick={() => setCliaType(t.label)} sub={t.brand} />
+                {Object.entries(CLIA).map(([key, t]) => (
+                  <MerkPill key={key} label={t.label} color={CLIA_COLORS[key]}
+                    active={cliaType === key} onClick={() => setCliaType(key)} sub={t.brand} />
                 ))}
               </div>
               <CLIAInput
