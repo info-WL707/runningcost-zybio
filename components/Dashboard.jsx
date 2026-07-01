@@ -727,7 +727,7 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, ccConsumablePerTest, workDays }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, ccConsumablePerTest, ccDetResult, workDays }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
@@ -736,6 +736,14 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
 
   // Beban Consumable/test from det() formula (batch-aware, 30-day basis matching Excel)
   const consumablePerTest = ccConsumablePerTest || 0;
+
+  // Map each Consumable param to its det() breakdown (conc → first, probe → second)
+  const consumables = params.filter(p => p.panel === 'Consumable');
+  const consCptMap = {};
+  if (ccDetResult && consumables.length >= 1) {
+    if (consumables[0]) consCptMap[consumables[0].id] = ccDetResult.conc || 0;
+    if (consumables[1]) consCptMap[consumables[1].id] = ccDetResult.probe || 0;
+  }
 
   // Active reagent params for QC calculation (qc_active checkbox, non-control/consumable)
   const activeParams  = params.filter(p => p.qc_active && p.panel !== 'Control' && p.panel !== 'Consumable');
@@ -813,25 +821,36 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                     seq += 1;
                     const nett       = p.price * (1 - p.disc / 100);
                     const reagentCpt = p.testsPerKit > 0 ? nett / p.testsPerKit : 0;
-                    const baseCpt = p.panel === 'Consumable'
-                      ? reagentCpt
+                    const isConsumable = p.panel === 'Consumable';
+                    const baseCpt = isConsumable
+                      ? (consCptMap[p.id] ?? 0)
                       : capPt + consumablePerTest + reagentCpt;
-                    const sellTest = markup < 100
+                    const sellTest = !isConsumable && markup < 100
                       ? Math.ceil(baseCpt / (1 - markup / 100) / 100) * 100
                       : 0;
-                    const sellKit = p.panel === 'Consumable'
-                      ? Math.ceil(nett / (1 - markup / 100) / 100) * 100
-                      : sellTest * p.testsPerKit;
+                    const sellKit = !isConsumable
+                      ? sellTest * p.testsPerKit
+                      : nett;
                     return (
                       <tr key={p.id}>
                         <td style={{ color: 'var(--text-3)' }}>{seq}</td>
                         <td style={{ fontWeight: 700 }}>{p.name}</td>
                         <td><span className={`badge ${PAN_CLS[p.panel]}`}>{p.panel}</span></td>
                         <td style={{ fontSize: 11, color: 'var(--text-2)' }}>{p.pack}</td>
-                        <td className="r">{fmt(p.testsPerKit)}</td>
+                        <td className="r">
+                          {isConsumable
+                            ? <span style={{ fontSize: 10, color: 'var(--text-3)', fontStyle: 'italic' }}>overhead</span>
+                            : fmt(p.testsPerKit)}
+                        </td>
                         <td className="cpt">{rp(baseCpt)}</td>
-                        <td className="r td-sell">{rp(sellTest)}</td>
-                        <td className="r td-sell">{rp(sellKit)}</td>
+                        <td className="r td-sell">
+                          {isConsumable
+                            ? <span style={{ fontSize: 10, color: 'var(--text-3)' }}>—</span>
+                            : rp(sellTest)}
+                        </td>
+                        <td className="r td-sell" title={isConsumable ? 'Harga beli per pack' : ''}>
+                          {rp(sellKit)}
+                        </td>
                       </tr>
                     );
                   }),
@@ -1991,6 +2010,7 @@ export default function Dashboard() {
               testsPerMonth={cSet[cType].tests}
               markup={cSet[cType].markup}
               ccConsumablePerTest={ccConsumablePerTest}
+              ccDetResult={ccDetResult}
               workDays={workDays}
             />
           ) : tab === 'xm' ? (
