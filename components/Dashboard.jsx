@@ -727,20 +727,15 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, ccConsumablePerTest }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
   const freeCtrlVials  = freeControls.filter(p => p.id !== 'cc_cal');
   const displayParams  = params.filter(p => !(p.panel === 'Control' && p.free));
 
-  // Beban Consumable/test shared across all parameters
-  const consumablePerTest = params
-    .filter(p => p.panel === 'Consumable')
-    .reduce((s, p) => {
-      const nett = p.price * (1 - p.disc / 100);
-      return s + (p.testsPerKit > 0 ? nett / p.testsPerKit : 0);
-    }, 0);
+  // Beban Consumable/test from det() formula (batch-aware, 30-day basis matching Excel)
+  const consumablePerTest = ccConsumablePerTest || 0;
 
   // Active reagent params for QC calculation (first n_param, non-control/consumable)
   const reagentParams = params.filter(p => p.panel !== 'Control' && p.panel !== 'Consumable');
@@ -1325,6 +1320,16 @@ export default function Dashboard() {
   const capPt   = totTest > 0 ? totCap / totTest : 0;
   const D       = workDays > 0 ? curSet.tests / workDays : 0;
 
+  // ── CC Consumable via det() (30-day basis matching Excel D2 table) ──
+  const ccConcItem  = ccParams.find(p => p.id === 'cc_19');
+  const ccProbeItem = ccParams.find(p => p.id === 'cc_20');
+  const ccConcNett  = ccConcItem  ? ccConcItem.price  * (1 - ccConcItem.disc  / 100) : CC[cType].cons[0].dp;
+  const ccProbeNett = ccProbeItem ? ccProbeItem.price * (1 - ccProbeItem.disc / 100) : CC[cType].cons[1].dp;
+  const ccDetResult = cSet[cType].tests > 0
+    ? CC[cType].det(cSet[cType].tests, workDays, ccConcNett, ccProbeNett, cSet[cType].batch)
+    : null;
+  const ccConsumablePerTest = ccDetResult ? ccDetResult.total : 0;
+
   // ── Crossmatch computed ──
   const xmCurSet   = xmSet[xmType];
   const xmANett    = xmCurSet.price * (1 - xmCurSet.disc / 100);
@@ -1888,6 +1893,7 @@ export default function Dashboard() {
               D={D}
               testsPerMonth={cSet[cType].tests}
               markup={cSet[cType].markup}
+              ccConsumablePerTest={ccConsumablePerTest}
             />
           ) : tab === 'xm' ? (
             <CrossmatchResult
