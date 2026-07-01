@@ -152,9 +152,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
   // so that Σ(sellKit_i / effectiveTestsPerKit_i) = sell (total cost/test)
   const rows = rows0.map(r => ({
     ...r,
-    sellKit: markup < 100 && totR > 0
-      ? sell * r.nettKit / totR
-      : (markup < 100 ? r.nettKit / (1 - markup / 100) : 0),
+    sellKit: markup < 100 ? r.nettKit / (1 - markup / 100) : 0,
   }));
   const markup_amt = sell - base;
 
@@ -262,9 +260,7 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
     const obj     = xmRpNow[r.id] || { price: 0, disc: 0 };
     const nettKit = obj.price * (1 - obj.disc / 100);
     const contrib = xmRes ? (xmRes.pr[r.id] || 0) : 0;
-    const sellKit = markup < 100 && totR > 0
-      ? sell * nettKit / totR
-      : (markup < 100 ? nettKit / (1 - markup / 100) : 0);
+    const sellKit = markup < 100 ? nettKit / (1 - markup / 100) : 0;
     return { ...r, nettKit, contrib, sellKit };
   });
 
@@ -731,7 +727,7 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
@@ -778,7 +774,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
       <div className="tbl-section">
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost — {cType}</span>
-          <span className="tbl-note">Cost/Test = Beban Alat + Beban Consumable + Beban Reagen</span>
+          <span className="tbl-note">Sell/Test = (Beban Alat + Consumable + Reagen) ÷ (1−markup) · Sell/Kit = Sell/Test × Test/Kit</span>
         </div>
         <div style={{ display: 'flex', gap: 20, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid var(--bdr)', flexWrap: 'wrap' }}>
           <span style={{ fontSize: 11 }}>
@@ -805,8 +801,9 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
                 <th>Panel</th>
                 <th>Pack</th>
                 <th className="r">Test/Kit</th>
-                <th className="r">Cost/Kit</th>
-                <th className="r">Cost/Test</th>
+                <th className="r">Base/Test</th>
+                <th className="r th-sell">Sell/Test</th>
+                <th className="r th-sell">Sell/Kit (Pricelist)</th>
               </tr>
             </thead>
             <tbody>
@@ -815,19 +812,21 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
                 if (rows.length === 0) return null;
                 return [
                   <tr key={`ph-${panel}`} className="tr-panel-hdr">
-                    <td colSpan={7}><span className={`badge ${PAN_CLS[panel]}`}>{panel}</span></td>
+                    <td colSpan={8}><span className={`badge ${PAN_CLS[panel]}`}>{panel}</span></td>
                   </tr>,
                   ...rows.map(p => {
                     seq += 1;
                     const nett       = p.price * (1 - p.disc / 100);
                     const reagentCpt = p.testsPerKit > 0 ? nett / p.testsPerKit : 0;
-                    // Consumable items: show only their own reagent cost (they ARE the consumable overhead)
-                    const costTest = p.panel === 'Consumable'
+                    const baseCpt = p.panel === 'Consumable'
                       ? reagentCpt
                       : capPt + consumablePerTest + reagentCpt;
-                    const costKit = p.panel === 'Consumable'
-                      ? nett
-                      : costTest * p.testsPerKit;
+                    const sellTest = markup < 100
+                      ? Math.ceil(baseCpt / (1 - markup / 100) / 100) * 100
+                      : 0;
+                    const sellKit = p.panel === 'Consumable'
+                      ? Math.ceil(nett / (1 - markup / 100) / 100) * 100
+                      : sellTest * p.testsPerKit;
                     return (
                       <tr key={p.id}>
                         <td style={{ color: 'var(--text-3)' }}>{seq}</td>
@@ -835,8 +834,9 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
                         <td><span className={`badge ${PAN_CLS[p.panel]}`}>{p.panel}</span></td>
                         <td style={{ fontSize: 11, color: 'var(--text-2)' }}>{p.pack}</td>
                         <td className="r">{fmt(p.testsPerKit)}</td>
-                        <td className="r td-sell">{rp(costKit)}</td>
-                        <td className="cpt">{rp(costTest)}</td>
+                        <td className="cpt">{rp(baseCpt)}</td>
+                        <td className="r td-sell">{rp(sellTest)}</td>
+                        <td className="r td-sell">{rp(sellKit)}</td>
                       </tr>
                     );
                   }),
@@ -847,7 +847,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
               {hasOverhead && (
                 <>
                   <tr className="tr-panel-hdr">
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <span className="badge bctrl">QC &amp; Calibrator — Overhead (Free)</span>
                       <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 10 }}>
                         dibebankan ke semua patient test
@@ -869,6 +869,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
                     </td>
                     <td className="r" style={{ color: 'var(--amber)', fontWeight: 600 }}>{rp(freeCtrlNett)}</td>
                     <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(qcOverhead)}</td>
+                    <td></td>
                   </tr>
                   {/* Calibrator */}
                   {freeCalibrator && (
@@ -884,11 +885,12 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
                       <td className="r" style={{ color: 'var(--text-3)', fontSize: 11 }}>{freeCalibrator.pack}</td>
                       <td className="r" style={{ color: 'var(--amber)', fontWeight: 600 }}>{rp(calKitCost)}</td>
                       <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(calOverhead)}</td>
+                      <td></td>
                     </tr>
                   )}
                   {/* Overhead total */}
                   <tr className="tr-sub">
-                    <td colSpan={6} style={{ color: 'var(--amber)' }}>Total Overhead QC + Cal / Test</td>
+                    <td colSpan={7} style={{ color: 'var(--amber)' }}>Total Overhead QC + Cal / Test</td>
                     <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(totalOverhead)}</td>
                   </tr>
                 </>
@@ -899,9 +901,10 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth }
                 <td colSpan={5} style={{ fontSize: 11 }}>
                   Beban Alat: <strong style={{ color: 'var(--red)' }}>{rp(capPt)}</strong>
                   &nbsp;·&nbsp;Beban Consumable: <strong>{rp(consumablePerTest)}</strong>
-                  &nbsp;·&nbsp; Cost/Test = Alat + Consumable + Reagen masing-masing parameter
+                  &nbsp;·&nbsp;Markup: <strong>{markup}%</strong>
+                  &nbsp;·&nbsp;Sell/Test = ROUNDUP((Alat+Cons+Reagen)÷(1−markup), 2)
                 </td>
-                <td colSpan={2}></td>
+                <td colSpan={3}></td>
               </tr>
             </tbody>
           </table>
@@ -1884,6 +1887,7 @@ export default function Dashboard() {
               ccQC={ccQC}
               D={D}
               testsPerMonth={cSet[cType].tests}
+              markup={cSet[cType].markup}
             />
           ) : tab === 'xm' ? (
             <CrossmatchResult
