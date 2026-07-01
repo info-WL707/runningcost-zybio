@@ -727,7 +727,7 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, ccConsumablePerTest }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, ccConsumablePerTest, workDays }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
@@ -737,20 +737,20 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
   // Beban Consumable/test from det() formula (batch-aware, 30-day basis matching Excel)
   const consumablePerTest = ccConsumablePerTest || 0;
 
-  // Active reagent params for QC calculation (first n_param, non-control/consumable)
-  const reagentParams = params.filter(p => p.panel !== 'Control' && p.panel !== 'Consumable');
-  const n = Math.min(ccQC.n_param || 0, reagentParams.length);
-  const activeParams  = reagentParams.slice(0, n);
+  // Active reagent params for QC calculation (qc_active checkbox, non-control/consumable)
+  const activeParams  = params.filter(p => p.qc_active && p.panel !== 'Control' && p.panel !== 'Consumable');
+  const n = activeParams.length;
   const baseCostSum   = activeParams.reduce((s, p) => {
     const nett = p.price * (1 - p.disc / 100);
     return s + (p.testsPerKit > 0 ? nett / p.testsPerKit : 0);
   }, 0);
 
-  // QC Control overhead (per 25-day period → per patient test)
-  const pt25         = D * 25;
+  // QC Control overhead (per workDays period → per patient test)
+  const wd           = workDays || 25;
+  const ptWd         = D * wd;
   const freeCtrlNett = freeCtrlVials.reduce((s, p) => s + p.price * (1 - p.disc / 100), 0);
-  const qcReagent    = baseCostSum * 25;
-  const qcOverhead   = pt25 > 0 ? (qcReagent + freeCtrlNett) / pt25 : 0;
+  const qcReagent    = baseCostSum * (ccQC.n_ctrl || 1) * wd;
+  const qcOverhead   = ptWd > 0 ? (qcReagent + freeCtrlNett) / ptWd : 0;
 
   // Calibrator overhead (per month)
   const calPerRun    = freeCalibrator
@@ -854,9 +854,9 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                     <td colSpan={4} style={{ fontSize: 11 }}>
                       <span style={{ fontWeight: 600 }}>QC Control</span>
                       <span style={{ color: 'var(--text-3)', marginLeft: 8 }}>
-                        {fmt(n)} param × 25 hari = {fmt(n * 25)} reaksi
+                        {fmt(n)} param × {ccQC.n_ctrl || 1}×/hari × {fmt(wd)} hari = {fmt(n * (ccQC.n_ctrl || 1) * wd)} reaksi
                         &nbsp;·&nbsp;Ctrl vial: {rp(freeCtrlNett)}
-                        &nbsp;·&nbsp;÷ {fmt(Math.round(pt25))} test/25hari
+                        &nbsp;·&nbsp;÷ {fmt(Math.round(ptWd))} test/{fmt(wd)}hari
                       </span>
                     </td>
                     <td className="r" style={{ color: 'var(--text-3)', fontSize: 11 }}>
@@ -1065,6 +1065,7 @@ function CCInputCC({
           <span style={{ width: 70, textAlign: 'right' }}>Test/Kit</span>
           <span style={{ width: 90, textAlign: 'right' }}>Harga Beli</span>
           <span style={{ width: 52, textAlign: 'right' }}>Disc%</span>
+          <span style={{ width: 32, textAlign: 'center' }}>QC</span>
           <span style={{ width: 54 }}></span>
         </div>
 
@@ -1110,6 +1111,17 @@ function CCInputCC({
                       <SmallNumInput value={p.disc} onChange={v => updCCParam(p.id, 'disc', v)} tiny />
                       <span style={{ fontSize: 10, color: 'var(--text-3)' }}>%</span>
                     </span>
+                    <span style={{ width: 32, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {p.panel !== 'Control' && p.panel !== 'Consumable' ? (
+                        <input
+                          type="checkbox"
+                          checked={!!p.qc_active}
+                          onChange={e => updCCParam(p.id, 'qc_active', e.target.checked)}
+                          style={{ cursor: 'pointer' }}
+                          title="Aktifkan untuk QC"
+                        />
+                      ) : null}
+                    </span>
                     <span className="cc-pr-act">
                       {isCtrl && (
                         <label className="cc-free-toggle">
@@ -1139,12 +1151,12 @@ function CCInputCC({
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Parameter / hari</span>
-                      <SmallNumInput value={ccQC.n_param} onChange={v => setCCQC(q => ({ ...q, n_param: v }))} tiny />
-                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>param</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kontrol / hari</span>
+                      <SmallNumInput value={ccQC.n_ctrl} onChange={v => setCCQC(q => ({ ...q, n_ctrl: v }))} tiny />
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi / 25 hari</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi / bulan</span>
                       <SmallNumInput value={ccQC.n_cal} onChange={v => setCCQC(q => ({ ...q, n_cal: v }))} tiny />
                       <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
                     </span>
@@ -1264,6 +1276,7 @@ function initCCParams() {
     disc:        0,
     custom:      false,
     free:        p.pan === 'Control',
+    qc_active:   p.pan !== 'Control' && p.pan !== 'Consumable',
   }));
   base.push({
     id: 'cc_cal', name: 'Calibrator', panel: 'Control',
@@ -1296,8 +1309,14 @@ export default function Dashboard() {
     xr:  { price: 11787000, disc: 0 },
     cal: { price: 1700000,  disc: 0 },
   });
+  const [hCtrl,       setHCtrl]       = useState({
+    Z3:      { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z52:     { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z50:     { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    EXZ6000: { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+  });
   const [ccParams,    setCCParams]    = useState(initCCParams);
-  const [ccQC,        setCCQC]        = useState({ n_param: 10, n_cal: 2 });
+  const [ccQC,        setCCQC]        = useState({ n_ctrl: 2, n_cal: 2 });
   const [xmType,      setXmType]      = useState('LIBO');
   const [xmMethod,    setXmMethod]    = useState(initXmMethod);
   const [xmSet,       setXmSet]       = useState(initXmSet);
@@ -1387,6 +1406,10 @@ export default function Dashboard() {
   const updCliaCons = (id, fld, v) => setCliaCons(p => ({ ...p, [cliaType]: { ...p[cliaType], [id]: { ...p[cliaType][id], [fld]: v } } }));
   const updCliaParam = (pid, fld, v) => setCliaParams(p => ({ ...p, [cliaType]: { ...p[cliaType], [pid]: { ...p[cliaType][pid], [fld]: v } } }));
 
+  const updHCtrl     = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], [f]: v } }));
+  const updHCtrlCtrl = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], ctrl: { ...p[hType].ctrl, [f]: v } } }));
+  const updHCtrlCal  = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], cal:  { ...p[hType].cal,  [f]: v } } }));
+
   const updCCParam = (id, field, value) =>
     setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
   const addCCParam = (data) =>
@@ -1419,6 +1442,20 @@ export default function Dashboard() {
       ctrlOverhead = (nettCtrl + qcReagen + nettCal + calReagen) / tests25;
     } else {
       ctrlOverhead = (nettCtrl + nettCal) / tests25;
+    }
+  } else if (hType !== 'EXZ8000' && D > 0 && hRes) {
+    const hc = hCtrl[hType];
+    if (hc) {
+      const nettCtrl   = hc.ctrl.price * (1 - hc.ctrl.disc / 100);
+      const nettCal    = hc.cal.price  * (1 - hc.cal.disc  / 100);
+      const monthTests = curSet.tests;
+      if (hc.free && monthTests > 0) {
+        const qcReagen  = hc.n_qc  * workDays * hRes.cyc;
+        const calReagen = hc.n_cal * hRes.cyc;
+        ctrlOverhead = (nettCtrl + qcReagen + nettCal + calReagen) / monthTests;
+      } else if (!hc.free && monthTests > 0) {
+        ctrlOverhead = (nettCtrl + nettCal) / monthTests;
+      }
     }
   }
 
@@ -1589,6 +1626,66 @@ export default function Dashboard() {
                         <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi/25 hari</span>
                         <SmallNumInput value={exzCtrl.n_cal}
                           onChange={v => setExzCtrl(s => ({ ...s, n_cal: v }))} tiny />
+                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {hType !== 'EXZ8000' && (
+                <div className="sel-row" style={{ flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
+                  <span className="sel-label">KONTROL &amp; CAL</span>
+                  {/* Free / Paid toggle */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {['free', 'beli'].map(opt => (
+                      <button key={opt}
+                        className={`merk-pill${(opt === 'free') === hCtrl[hType]?.free ? ' merk-active' : ''}`}
+                        style={(opt === 'free') === hCtrl[hType]?.free ? { borderColor: H_COLORS[hType], color: H_COLORS[hType] } : {}}
+                        onClick={() => updHCtrl('free', opt === 'free')}>
+                        {opt === 'free' ? 'Free (Overhead)' : 'Beli (Pricelist)'}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Control price */}
+                  <div className="rp-item" style={{ minWidth: 220 }}>
+                    <div className="rp-name">Harga Kontrol</div>
+                    <div className="rp-row2">
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Harga Beli</label>
+                        <NumInput value={hCtrl[hType]?.ctrl.price || 0} onChange={v => updHCtrlCtrl('price', v)} prefix="Rp" />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Diskon</label>
+                        <NumInput value={hCtrl[hType]?.ctrl.disc || 0} onChange={v => updHCtrlCtrl('disc', v)} suffix="%" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Calibrator price */}
+                  <div className="rp-item" style={{ minWidth: 220 }}>
+                    <div className="rp-name">Harga Kalibrator</div>
+                    <div className="rp-row2">
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Harga Beli</label>
+                        <NumInput value={hCtrl[hType]?.cal.price || 0} onChange={v => updHCtrlCal('price', v)} prefix="Rp" />
+                      </div>
+                      <div className="field" style={{ margin: 0 }}>
+                        <label>Diskon</label>
+                        <NumInput value={hCtrl[hType]?.cal.disc || 0} onChange={v => updHCtrlCal('disc', v)} suffix="%" />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Free-mode extra inputs */}
+                  {hCtrl[hType]?.free && (
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jml QC/hari</span>
+                        <SmallNumInput value={hCtrl[hType]?.n_qc || 2} onChange={v => updHCtrl('n_qc', v)} tiny />
+                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>run</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi/bulan</span>
+                        <SmallNumInput value={hCtrl[hType]?.n_cal || 2} onChange={v => updHCtrl('n_cal', v)} tiny />
                         <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
                       </div>
                     </div>
@@ -1894,6 +1991,7 @@ export default function Dashboard() {
               testsPerMonth={cSet[cType].tests}
               markup={cSet[cType].markup}
               ccConsumablePerTest={ccConsumablePerTest}
+              workDays={workDays}
             />
           ) : tab === 'xm' ? (
             <CrossmatchResult
