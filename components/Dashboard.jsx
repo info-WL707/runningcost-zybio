@@ -82,7 +82,7 @@ function NumInput({ value, onChange, prefix, suffix }) {
       {prefix && <span className="pfx">{prefix}</span>}
       <input
         type="text" value={text} className="ni" inputMode="numeric"
-        onFocus={() => { editing.current = true; }}
+        onFocus={e => { editing.current = true; e.target.select(); }}
         onChange={e => { setText(e.target.value); onChange(parseIDR(e.target.value)); }}
         onBlur={() => {
           editing.current = false;
@@ -105,7 +105,7 @@ function SmallNumInput({ value, onChange, tiny }) {
       type="text" value={text}
       className={tiny ? 'di' : 'pi'}
       inputMode="numeric"
-      onFocus={() => { editing.current = true; }}
+      onFocus={e => { editing.current = true; e.target.select(); }}
       onChange={e => { setText(e.target.value); onChange(parseIDR(e.target.value)); }}
       onBlur={() => {
         editing.current = false;
@@ -136,23 +136,23 @@ function MerkPill({ label, color, active, onClick, sub }) {
 function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl }) {
   const rows0 = data.reagents.map(r => {
     const obj         = hRpData[r.id] || { price: 0, disc: 0 };
-    const nettKit     = obj.price * (1 - obj.disc / 100);
+    const sellKit     = obj.price;
+    const nettKit     = markup < 100 ? sellKit * (1 - markup / 100) : 0;
     const pr          = hRes ? hRes.pr[r.id] : null;
     const cyc         = pr ? pr.c : 0;
     const fix         = pr ? pr.f : 0;
     const contribTest = cyc + fix;
-    return { ...r, obj, nettKit, contribTest };
+    return { ...r, obj, nettKit, sellKit, contribTest };
   });
 
   const totR = rows0.reduce((s, r) => s + r.contribTest, 0);
   const base = capPt + totR + (ctrl || 0);
   const sell       = sellOf(base, markup);
 
-  // sellKit distributes the full sell price (including CAPEX) proportionally
-  // so that Σ(sellKit_i / effectiveTestsPerKit_i) = sell (total cost/test)
+  // harga yang harus dimasukkan ke Excel agar Excel menghasilkan CPRR yang sama
   const rows = rows0.map(r => ({
     ...r,
-    sellKit: markup < 100 ? r.nettKit / (1 - markup / 100) : 0,
+    excelKit: totR > 0 && sell > 0 ? r.nettKit * sell / totR : 0,
   }));
   const markup_amt = sell - base;
 
@@ -181,7 +181,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
             Rincian Reagen — {data.label} ({data.diff}){modeLabel ? ` · ${modeLabel}` : ''}
           </span>
           <span className="tbl-note">
-            {D > 0 ? 'Kontrib/Test rekonsiliasi ke Cost/Test KSO CPRR · Harga Jual/Kit = nett ÷ (1−markup)' : 'Lengkapi input di halaman sebelumnya'}
+            {D > 0 ? 'Harga KSO di Excel = harga yang dimasukkan ke file running cost Excel agar hasilnya sama dengan KSO CPRR' : 'Lengkapi input di halaman sebelumnya'}
           </span>
         </div>
         <div className="tbl-wrap">
@@ -191,7 +191,10 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
                 <th>Nama Barang</th>
                 <th>Kemasan</th>
                 <th className="r">Kontrib/Test</th>
-                <th className="r th-sell">Harga Jual/Kit</th>
+                <th className="r" style={{ background: '#FFF7ED', color: '#92400E', fontSize: 11 }}>
+                  Harga KSO di Excel<br/>
+                  <span style={{ fontWeight: 400 }}>(masukkan ke running cost Excel)</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -200,7 +203,9 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
                   <td style={{ fontWeight: 600 }}>{r.fn}</td>
                   <td style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
                   <td className="cpt">{hRes ? fmt(r.contribTest) : '—'}</td>
-                  <td className="r td-sell">{hRes ? rp(r.sellKit) : '—'}</td>
+                  <td className="r" style={{ background: '#FFF7ED', color: '#92400E', fontWeight: 700 }}>
+                    {hRes && r.excelKit > 0 ? rp(r.excelKit) : '—'}
+                  </td>
                 </tr>
               ))}
               {ctrl > 0 && (
@@ -727,7 +732,7 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, ccConsumablePerTest, ccDetResult, workDays }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, kso, ccConsumablePerTest, ccDetResult, workDays }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
@@ -745,19 +750,21 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
     if (consumables[1]) consCptMap[consumables[1].id] = ccDetResult.probe || 0;
   }
 
-  // Active reagent params for QC calculation (qc_active checkbox, non-control/consumable)
-  const activeParams  = params.filter(p => p.qc_active && p.panel !== 'Control' && p.panel !== 'Consumable');
-  const n = activeParams.length;
-  const baseCostSum   = activeParams.reduce((s, p) => {
+  // QC reagent cost: average cost/test across all non-ctrl/non-consumable params × n_param
+  const allRegularParams = params.filter(p => p.panel !== 'Control' && p.panel !== 'Consumable');
+  const totalRegCost = allRegularParams.reduce((s, p) => {
     const nett = p.price * (1 - p.disc / 100);
     return s + (p.testsPerKit > 0 ? nett / p.testsPerKit : 0);
   }, 0);
+  const avgCptPerParam = allRegularParams.length > 0 ? totalRegCost / allRegularParams.length : 0;
+  const n = ccQC.n_param || 0;
+  const baseCostSum = avgCptPerParam * n;
 
   // QC Control overhead (per workDays period → per patient test)
-  const wd           = workDays || 25;
+  const wd           = workDays || 0;
   const ptWd         = D * wd;
   const freeCtrlNett = freeCtrlVials.reduce((s, p) => s + p.price * (1 - p.disc / 100), 0);
-  const qcReagent    = baseCostSum * (ccQC.n_ctrl || 1) * wd;
+  const qcReagent    = baseCostSum * (ccQC.n_ctrl || 0) * wd;
   const qcOverhead   = ptWd > 0 ? (qcReagent + freeCtrlNett) / ptWd : 0;
 
   // Calibrator overhead (per month)
@@ -768,12 +775,50 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
   const calKitCost   = calPerRun * (ccQC.n_cal || 0);
   const calOverhead  = testsPerMonth > 0 ? (calReagent + calKitCost) / testsPerMonth : 0;
 
-  const hasOverhead  = freeControls.length > 0 && D > 0;
-  const totalOverhead = qcOverhead + calOverhead;
+  const hasOverhead   = freeControls.length > 0 && D > 0;
+  const totalOverhead = hasOverhead ? qcOverhead + calOverhead : 0;
+
+  const fixedBase = capPt + consumablePerTest + totalOverhead;
+
+  // rata-rata sell/test dari semua parameter (termasuk reagen)
+  const avgReagenCpt = allRegularParams.length > 0
+    ? allRegularParams.reduce((s, p) => {
+        const nett = p.price * (1 - p.disc / 100);
+        return s + (p.testsPerKit > 0 ? nett / p.testsPerKit : 0);
+      }, 0) / allRegularParams.length
+    : 0;
+  const avgBaseCpt = fixedBase + avgReagenCpt;
+  const avgSellCpt = markup < 100 ? avgBaseCpt / (1 - markup / 100) : 0;
+  const showAvg = (capPt > 0 || consumablePerTest > 0) && allRegularParams.length > 0;
 
   let seq = 0;
   return (
     <div className="page2-wrap">
+      <div className="cprr-hero">
+        <div className="cprr-label">COST / TEST — KSO CPRR</div>
+        <div className="cprr-sub">
+          {cType}
+          {testsPerMonth > 0 ? ` · ${fmt(testsPerMonth)} sampel/bln` : ''}
+          {kso > 0 ? ` · ${kso} bulan` : ''}
+          {D > 0 ? ` · ${fmt(Math.round(D))} sampel/hari` : ''}
+        </div>
+        <div className="cprr-val" style={{ fontSize: 28 }}>
+          {showAvg ? rp(Math.ceil(avgSellCpt / 100) * 100) : capPt > 0 || consumablePerTest > 0 ? rp(fixedBase) : '—'}
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 10 }}>
+          {showAvg
+            ? `Rata-rata sell/test dari ${allRegularParams.length} parameter · reagen bervariasi per parameter`
+            : `Beban tetap/test (alat + consumable${hasOverhead ? ' + QC' : ''}) · reagen bervariasi per parameter`}
+        </div>
+        <div className="cprr-pills">
+          <span className="pill pl-cap">CAPEX/Test: {rp(capPt)}</span>
+          <span className="pill pl-rgn">Consumable/Test: {rp(consumablePerTest)}</span>
+          {hasOverhead && <span className="pill pl-qc">QC+Cal/Test: {rp(totalOverhead)}</span>}
+          {showAvg && <span className="pill pl-base">Rata-rata Reagen/Test: {rp(Math.round(avgReagenCpt))}</span>}
+          <span className="pill pl-mkp">Markup {markup}%: {showAvg ? rp(Math.ceil(avgSellCpt / 100) * 100 - avgBaseCpt) : '—'}</span>
+        </div>
+      </div>
+
       <div className="tbl-section">
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost — {cType}</span>
@@ -824,7 +869,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                     const isConsumable = p.panel === 'Consumable';
                     const baseCpt = isConsumable
                       ? (consCptMap[p.id] ?? 0)
-                      : capPt + consumablePerTest + reagentCpt;
+                      : capPt + consumablePerTest + totalOverhead + reagentCpt;
                     const sellTest = !isConsumable && markup < 100
                       ? Math.ceil(baseCpt / (1 - markup / 100) / 100) * 100
                       : 0;
@@ -1130,17 +1175,6 @@ function CCInputCC({
                       <SmallNumInput value={p.disc} onChange={v => updCCParam(p.id, 'disc', v)} tiny />
                       <span style={{ fontSize: 10, color: 'var(--text-3)' }}>%</span>
                     </span>
-                    <span style={{ width: 32, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {p.panel !== 'Control' && p.panel !== 'Consumable' ? (
-                        <input
-                          type="checkbox"
-                          checked={!!p.qc_active}
-                          onChange={e => updCCParam(p.id, 'qc_active', e.target.checked)}
-                          style={{ cursor: 'pointer' }}
-                          title="Aktifkan untuk QC"
-                        />
-                      ) : null}
-                    </span>
                     <span className="cc-pr-act">
                       {isCtrl && (
                         <label className="cc-free-toggle">
@@ -1169,6 +1203,11 @@ function CCInputCC({
                     PENGATURAN QC &amp; KALIBRASI
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jumlah parameter</span>
+                      <SmallNumInput value={ccQC.n_param} onChange={v => setCCQC(q => ({ ...q, n_param: v }))} tiny />
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>param</span>
+                    </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kontrol / hari</span>
                       <SmallNumInput value={ccQC.n_ctrl} onChange={v => setCCQC(q => ({ ...q, n_ctrl: v }))} tiny />
@@ -1219,24 +1258,24 @@ function CCInputCC({
 
 function initHSet() {
   return {
-    Z3:      { price: 115e6,     disc: 0,  kso: 60, markup: 20, tests: 500  },
-    Z52:     { price: 190e6,     disc: 0,  kso: 60, markup: 20, tests: 750  },
-    Z50:     { price: 210e6,     disc: 0,  kso: 60, markup: 20, tests: 750  },
-    EXZ8000: { price: 754800000, disc: 0,  kso: 60, markup: 20, tests: 2000 },
-    EXZ6000: { price: 365e6,     disc: 0,  kso: 60, markup: 20, tests: 1500 },
+    Z3:      { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
+    Z52:     { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
+    Z50:     { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
+    EXZ8000: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
+    EXZ6000: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
   };
 }
 function initCSet() {
   return {
-    EXC200: { price: 210e6,     disc: 30, kso: 60, markup: 20, tests: 1800, batch: 20 },
-    EXC400: { price: 765765000, disc: 0,  kso: 60, markup: 20, tests: 5000, batch: 20 },
+    EXC200: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 },
+    EXC400: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 },
   };
 }
 function initHRp() {
   return {
     Z3:      { lyse: {price:1550000,disc:0}, dil: {price:1550000,disc:0}, probe: {price:400000,disc:0} },
-    Z52:     { dn: {price:2000000,disc:0}, ld: {price:2500000,disc:0}, lb: {price:2000000,disc:0}, probe: {price:400000,disc:0} },
-    Z50:     { dn: {price:2000000,disc:0}, ld: {price:2500000,disc:0}, lb: {price:2000000,disc:0}, probe: {price:400000,disc:0} },
+    Z52:     { dn: {price:2500000,disc:0}, ld: {price:3125000,disc:0}, lb: {price:2500000,disc:0}, probe: {price:500000,disc:0} },
+    Z50:     { dn: {price:2500000,disc:0}, ld: {price:3125000,disc:0}, lb: {price:2500000,disc:0}, probe: {price:500000,disc:0} },
     EXZ8000: {
       dn:    {price:1870000, disc:0}, ld:    {price:11787000,disc:0}, ln:    {price:11787000,disc:0},
       fd:    {price:8840000, disc:0}, fn:    {price:2550000, disc:0}, ls:    {price:3684000, disc:0},
@@ -1247,8 +1286,8 @@ function initHRp() {
 }
 function initXmSet() {
   return {
-    LIBO:   { price: 46564500, disc: 0, kso: 60, markup: 20, tests: 100 },
-    REDCEL: { price: 0,        disc: 0, kso: 60, markup: 20, tests: 100 },
+    LIBO:   { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
+    REDCEL: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
   };
 }
 function initXmMethod() {
@@ -1263,8 +1302,8 @@ function initXmRp() {
 
 function initCliaSet() {
   return {
-    SNIBE:  { price: 375000000, disc: 0, kso: 60, markup: 45, tests: 3200 },
-    WONDFO: { price: 0,         disc: 0, kso: 60, markup: 30, tests: 3200 },
+    SNIBE:  { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
+    WONDFO: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
   };
 }
 function initCliaCons() {
@@ -1295,7 +1334,7 @@ function initCCParams() {
     disc:        0,
     custom:      false,
     free:        p.pan === 'Control',
-    qc_active:   p.pan !== 'Control' && p.pan !== 'Consumable',
+    qc_active:   false,
   }));
   base.push({
     id: 'cc_cal', name: 'Calibrator', panel: 'Control',
@@ -1315,7 +1354,7 @@ export default function Dashboard() {
   const [cSet,        setCSet]        = useState(initCSet);
   const [ups,         setUps]         = useState(0);
   const [lis,         setLis]         = useState(0);
-  const [workDays,    setWorkDays]    = useState(25);
+  const [workDays,    setWorkDays]    = useState(0);
   const [backupOn,    setBackupOn]    = useState(false);
   const [backupKey,   setBackupKey]   = useState('Z3');
   const [backupPrice, setBackupPrice] = useState(115e6);
@@ -1323,19 +1362,19 @@ export default function Dashboard() {
   const [hRp,         setHRp]         = useState(initHRp);
   const [exzMode,     setExzMode]     = useState('cbc_diff_ret');
   const [exzCtrl,     setExzCtrl]     = useState({
-    free: true, n_qc: 3, n_cal: 2,
+    free: true, n_qc: 0, n_cal: 0,
     xn:  { price: 5894000,  disc: 0 },
     xr:  { price: 11787000, disc: 0 },
     cal: { price: 1700000,  disc: 0 },
   });
   const [hCtrl,       setHCtrl]       = useState({
-    Z3:      { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
-    Z52:     { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
-    Z50:     { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
-    EXZ6000: { free: true, n_qc: 2, n_cal: 2, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z3:      { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z52:     { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z50:     { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    EXZ6000: { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
   });
   const [ccParams,    setCCParams]    = useState(initCCParams);
-  const [ccQC,        setCCQC]        = useState({ n_ctrl: 2, n_cal: 2 });
+  const [ccQC,        setCCQC]        = useState({ n_ctrl: 0, n_cal: 0, n_param: 0 });
   const [xmType,      setXmType]      = useState('LIBO');
   const [xmMethod,    setXmMethod]    = useState(initXmMethod);
   const [xmSet,       setXmSet]       = useState(initXmSet);
@@ -1344,7 +1383,7 @@ export default function Dashboard() {
   const [xmLis,       setXmLis]       = useState(0);
   const [cliaType,    setCliaType]    = useState('SNIBE');
   const [cliaSet,     setCliaSet]     = useState(initCliaSet);
-  const [cliaUps,     setCliaUps]     = useState(20000000);
+  const [cliaUps,     setCliaUps]     = useState(0);
   const [cliaLis,     setCliaLis]     = useState(0);
   const [cliaCons,    setCliaCons]    = useState(initCliaCons);
   const [cliaParams,  setCliaParams]  = useState(initCliaParams);
@@ -1403,9 +1442,12 @@ export default function Dashboard() {
   const cliaConsInf = cliaConsBase + iwashCpt;
   const cliaParamsNow = cliaParams[cliaType];
 
-  // ── Reagent nett maps (hemato) ──
+  // ── Reagent nett maps (hemato) — input prices are Harga Jual/Kit, convert to nett ──
+  const hMarkup = curSet.markup;
   const rpNettMap = {};
-  Object.entries(hRp[hType]).forEach(([id, obj]) => { rpNettMap[id] = nettOf(obj); });
+  Object.entries(hRp[hType]).forEach(([id, obj]) => {
+    rpNettMap[id] = hMarkup < 100 ? obj.price * (1 - hMarkup / 100) : 0;
+  });
 
   // ── Calc (hemato) ──
   let hRes = null;
@@ -1699,12 +1741,12 @@ export default function Dashboard() {
                     <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jml QC/hari</span>
-                        <SmallNumInput value={hCtrl[hType]?.n_qc || 2} onChange={v => updHCtrl('n_qc', v)} tiny />
+                        <SmallNumInput value={hCtrl[hType]?.n_qc ?? 0} onChange={v => updHCtrl('n_qc', v)} tiny />
                         <span style={{ fontSize: 10, color: 'var(--text-3)' }}>run</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi/bulan</span>
-                        <SmallNumInput value={hCtrl[hType]?.n_cal || 2} onChange={v => updHCtrl('n_cal', v)} tiny />
+                        <SmallNumInput value={hCtrl[hType]?.n_cal ?? 0} onChange={v => updHCtrl('n_cal', v)} tiny />
                         <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
                       </div>
                     </div>
@@ -1825,30 +1867,60 @@ export default function Dashboard() {
 
                 {/* Harga Reagen */}
                 <div className="inp-card inp-card-reagent">
-                  <div className="inp-card-title">HARGA REAGEN</div>
+                  <div className="inp-card-title">HARGA REAGEN (PRICELIST)</div>
                   <div className="rp-list">
                     {reagents.map(r => {
-                      const obj  = getRpObj(r.id);
-                      const nett = nettOf(obj);
+                      const obj      = getRpObj(r.id);
+                      const nett     = curSet.markup < 100 ? obj.price * (1 - curSet.markup / 100) : 0;
+                      const excelKit = hRes && hReagenCpt > 0 && sellPrice > 0
+                        ? nett * sellPrice / hReagenCpt
+                        : null;
                       return (
                         <div key={r.id} className="rp-item">
                           <div className="rp-name" title={r.fn}>{r.fn}</div>
                           <div className="rp-pack">{r.pack}</div>
                           <div className="rp-row2">
                             <div className="field" style={{ margin: 0 }}>
-                              <label>Harga Beli</label>
+                              <label>Harga Jual / Kit (Pricelist)</label>
                               <NumInput value={obj.price} onChange={v => setRpField(r.id, 'price', v)} prefix="Rp" />
                             </div>
-                            <div className="field" style={{ margin: 0 }}>
-                              <label>Diskon</label>
-                              <NumInput value={obj.disc} onChange={v => setRpField(r.id, 'disc', v)} suffix="%" />
-                            </div>
                           </div>
-                          <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
+                          {excelKit !== null && (
+                            <div className="rp-nett" style={{ color: '#92400E', background: '#FFF7ED', borderRadius: 4, padding: '3px 6px', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                              <span>→ Harga KSO di Excel:</span>
+                              <span style={{ fontWeight: 700 }}>{rp(excelKit)}</span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
                   </div>
+                  {/* Running cost summary — perbandingan KSO vs konversi reagen */}
+                  {hRes && D > 0 && (
+                    <div style={{ borderTop: '2px solid var(--bdr)', marginTop: 10, paddingTop: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.5px', marginBottom: 6 }}>
+                        RUNNING COST SUMMARY
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                        <span style={{ color: 'var(--text-2)' }}>Total Reagen / Test</span>
+                        <span style={{ fontWeight: 600 }}>{rp(hReagenCpt)}</span>
+                      </div>
+                      {ctrlOverhead > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text-2)' }}>Kontrol + Cal / Test</span>
+                          <span style={{ fontWeight: 600, color: 'var(--amber)' }}>{rp(ctrlOverhead)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                        <span style={{ color: 'var(--text-2)' }}>+ CAPEX / Test</span>
+                        <span style={{ fontWeight: 600, color: 'var(--red)' }}>{rp(capPt)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, borderTop: '1px solid var(--bdr)', paddingTop: 6 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--blue)' }}>Cost / Test KSO CPRR</span>
+                        <span style={{ fontWeight: 900, color: 'var(--blue)', fontSize: 16 }}>{rp(sellPrice)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -2009,6 +2081,7 @@ export default function Dashboard() {
               D={D}
               testsPerMonth={cSet[cType].tests}
               markup={cSet[cType].markup}
+              kso={cSet[cType].kso}
               ccConsumablePerTest={ccConsumablePerTest}
               ccDetResult={ccDetResult}
               workDays={workDays}
