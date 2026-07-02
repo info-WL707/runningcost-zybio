@@ -624,6 +624,13 @@ tr:hover td { background: #FAFBFF; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
 
+/* ── Section visibility (desktop: page-switching, mobile: both visible) ── */
+[data-page="input"]  .sec-result { display: none; }
+[data-page="result"] .sec-input  { display: none; }
+
+/* Mobile result title banner (hidden on desktop) */
+.mob-result-title { display: none; }
+
 /* ══════════════════════════════════════════════════════════════
    MOBILE — ≤ 768px
 ══════════════════════════════════════════════════════════════ */
@@ -691,6 +698,30 @@ tr:hover td { background: #FAFBFF; }
   .mob-nav {
     display: flex;
   }
+
+  /* Both sections always visible on mobile */
+  [data-page] .sec-input,
+  [data-page] .sec-result { display: block !important; }
+
+  /* Result section divider */
+  .sec-result { border-top: 3px solid #F59E0B; }
+
+  /* Result title banner */
+  .mob-result-title {
+    display: block;
+    padding: 10px 14px;
+    background: #0D2341;
+    color: #F59E0B;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+  }
+
+  /* Hide desktop result topbar (back button) on mobile */
+  .sec-result .result-topbar { display: none; }
+
+  /* Hide less-important table columns on mobile */
+  .mob-hide { display: none !important; }
 }
 
 /* Mobile nav bar — hidden on desktop */

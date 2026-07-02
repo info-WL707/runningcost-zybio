@@ -204,7 +204,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
             <thead>
               <tr>
                 <th>Nama Barang</th>
-                <th>Kemasan</th>
+                <th className="mob-hide">Kemasan</th>
                 <th className="r">Kontrib/Test</th>
                 <th className="r" style={{ background: '#FFF7ED', color: '#92400E', fontSize: 11 }}>
                   Harga KSO di Excel<br/>
@@ -216,7 +216,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
               {rows.map(r => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600 }}>{r.fn}</td>
-                  <td style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
+                  <td className="mob-hide" style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
                   <td className="cpt">{hRes ? fmt(r.contribTest) : '—'}</td>
                   <td className="r" style={{ background: '#FFF7ED', color: '#92400E', fontWeight: 700 }}>
                     {hRes && r.excelKit > 0 ? rp(r.excelKit) : '—'}
@@ -314,7 +314,7 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
             <thead>
               <tr>
                 <th>Nama Barang</th>
-                <th>Kemasan</th>
+                <th className="mob-hide">Kemasan</th>
                 <th className="r">Kontrib/Test</th>
                 <th className="r th-sell">Harga Jual/Kit</th>
               </tr>
@@ -323,7 +323,7 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
               {rows.map(r => (
                 <tr key={r.id}>
                   <td style={{ fontWeight: 600 }}>{r.fn}</td>
-                  <td style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
+                  <td className="mob-hide" style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
                   <td className="cpt">{xmRes ? fmt(r.contrib) : '—'}</td>
                   <td className="r td-sell">{xmRes ? rp(r.sellKit) : '—'}</td>
                 </tr>
@@ -523,12 +523,12 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
           <table>
             <thead>
               <tr>
-                <th style={{ width: 32 }}>No</th>
+                <th className="mob-hide" style={{ width: 32 }}>No</th>
                 <th>Parameter</th>
-                <th>Panel</th>
+                <th className="mob-hide">Panel</th>
                 <th className="r">Kit</th>
                 <th className="r">HPP/Kit</th>
-                <th className="r">Konsumabel/Test</th>
+                <th className="mob-hide r">Konsumabel/Test</th>
                 <th className="r">Cost/Test</th>
                 <th className="r th-sell">Sell/Test</th>
               </tr>
@@ -552,12 +552,12 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
                     const sellTest = sellOf(costTest, markup);
                     return (
                       <tr key={p.no}>
-                        <td style={{ color: 'var(--text-3)' }}>{seq}</td>
+                        <td className="mob-hide" style={{ color: 'var(--text-3)' }}>{seq}</td>
                         <td style={{ fontWeight: 700 }}>{p.name}</td>
-                        <td><span className={`badge ${cls}`}>{panel}</span></td>
+                        <td className="mob-hide"><span className={`badge ${cls}`}>{panel}</span></td>
                         <td className="r">{p.kit}T</td>
                         <td className="r td-sell">{rp(nettKit)}</td>
-                        <td className="r" style={{ color: p.inf && cliaType === 'WONDFO' ? 'var(--amber)' : '' }}>
+                        <td className="mob-hide r" style={{ color: p.inf && cliaType === 'WONDFO' ? 'var(--amber)' : '' }}>
                           {rp(consPerTest)}
                         </td>
                         <td className="cpt">{rp(costTest)}</td>
@@ -884,10 +884,10 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
           <table>
             <thead>
               <tr>
-                <th style={{ width: 32 }}>No</th>
+                <th className="mob-hide" style={{ width: 32 }}>No</th>
                 <th>Parameter</th>
-                <th>Panel</th>
-                <th>Pack</th>
+                <th className="mob-hide">Panel</th>
+                <th className="mob-hide">Pack</th>
                 <th className="r">Test/Kit</th>
                 <th className="r">Base/Test</th>
                 <th className="r th-sell">Sell/Test</th>
@@ -918,10 +918,10 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                       : nett;
                     return (
                       <tr key={p.id}>
-                        <td style={{ color: 'var(--text-3)' }}>{seq}</td>
+                        <td className="mob-hide" style={{ color: 'var(--text-3)' }}>{seq}</td>
                         <td style={{ fontWeight: 700 }}>{p.name}</td>
-                        <td><span className={`badge ${PAN_CLS[p.panel]}`}>{p.panel}</span></td>
-                        <td style={{ fontSize: 11, color: 'var(--text-2)' }}>{p.pack}</td>
+                        <td className="mob-hide"><span className={`badge ${PAN_CLS[p.panel]}`}>{p.panel}</span></td>
+                        <td className="mob-hide" style={{ fontSize: 11, color: 'var(--text-2)' }}>{p.pack}</td>
                         <td className="r">
                           {isConsumable
                             ? <span style={{ fontSize: 10, color: 'var(--text-3)', fontStyle: 'italic' }}>overhead</span>
@@ -1553,7 +1553,7 @@ export default function Dashboard() {
   const nParam = ccParams.filter(p => p.panel !== 'Control' && p.panel !== 'Consumable').length;
 
   return (
-    <div>
+    <div data-page={page}>
       {/* ── Header ── */}
       <header className="hdr">
         <div className="brand">
@@ -1583,22 +1583,18 @@ export default function Dashboard() {
 
       {/* ── Mobile bottom navigation bar ── */}
       <div className="mob-nav">
-        {page === 'result' && (
-          <button className="mob-nav-btn mob-nav-prev" onClick={() => { setPage('input'); window.scrollTo(0, 0); }}>
-            ← INPUT &amp; PRICELIST
-          </button>
-        )}
-        {page === 'input' && (
-          <button className="mob-nav-btn mob-nav-next" onClick={() => { setPage('result'); window.scrollTo(0, 0); }}>
-            LIHAT HASIL →
-          </button>
-        )}
+        <button className="mob-nav-btn mob-nav-prev" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          ↑ INPUT &amp; PRICELIST
+        </button>
+        <button className="mob-nav-btn mob-nav-next" onClick={() => document.getElementById('mob-result')?.scrollIntoView({ behavior: 'smooth' })}>
+          LIHAT HASIL ↓
+        </button>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════
           PAGE 1 — INPUT
       ══════════════════════════════════════════════════════════════ */}
-      {page === 'input' && (
+      <div className="sec-input">
         <div className="page-body">
 
           {/* ── Pilih Kategori ── */}
@@ -2064,12 +2060,13 @@ export default function Dashboard() {
           )}
 
         </div>
-      )}
+      </div>
 
       {/* ══════════════════════════════════════════════════════════════
           PAGE 2 — HASIL PERHITUNGAN
       ══════════════════════════════════════════════════════════════ */}
-      {page === 'result' && (
+      <div className="sec-result" id="mob-result">
+        <div className="mob-result-title">▼ HASIL PERHITUNGAN</div>
         <div className="page-body">
           <div className="result-topbar">
             <div className="result-config">
@@ -2166,7 +2163,7 @@ export default function Dashboard() {
             />
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
