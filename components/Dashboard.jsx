@@ -73,7 +73,7 @@ const PAN_CLS = {
 
 // ─── NumInput ─────────────────────────────────────────────────────────────────
 
-function NumInput({ value, onChange, prefix, suffix }) {
+function NumInput({ value, onChange, prefix, suffix, disabled }) {
   const [text, setText] = useState(() => initFmt(value));
   const editing = useRef(false);
   useEffect(() => { if (!editing.current) setText(initFmt(value)); }, [value]);
@@ -82,6 +82,7 @@ function NumInput({ value, onChange, prefix, suffix }) {
       {prefix && <span className="pfx">{prefix}</span>}
       <input
         type="text" value={text} className="ni" inputMode="numeric"
+        disabled={!!disabled}
         onFocus={e => { editing.current = true; e.target.select(); }}
         onChange={e => { setText(e.target.value); onChange(parseIDR(e.target.value)); }}
         onBlur={() => {
@@ -133,11 +134,11 @@ function MerkPill({ label, color, active, onClick, sub }) {
 
 // ─── HematoResult (Page 2) ────────────────────────────────────────────────────
 
-function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl }) {
+function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl, exzMode, onExzModeChange }) {
   const rows0 = data.reagents.map(r => {
     const obj         = hRpData[r.id] || { price: 0, disc: 0 };
-    const sellKit     = obj.price;
-    const nettKit     = markup < 100 ? sellKit * (1 - markup / 100) : 0;
+    const nettKit     = obj.price * (1 - obj.disc / 100);
+    const sellKit     = markup < 100 ? nettKit / (1 - markup / 100) : 0;
     const pr          = hRes ? hRes.pr[r.id] : null;
     const cyc         = pr ? pr.c : 0;
     const fix         = pr ? pr.f : 0;
@@ -158,6 +159,20 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
 
   return (
     <div className="page2-wrap">
+      {onExzModeChange && (
+        <div style={{ display: 'flex', gap: 8, padding: '10px 18px', background: '#F8FAFC', borderBottom: '1px solid var(--bdr)', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-2)', marginRight: 4 }}>MODE TEST</span>
+          {[
+            { id: 'cbc_diff',         label: 'CBC+Diff' },
+            { id: 'cbc_diff_ret',     label: 'CBC+Diff+RET' },
+            { id: 'cbc_diff_xn',      label: 'CBC+Diff+Check XN' },
+            { id: 'cbc_diff_ret_xr',  label: 'CBC+Diff+RET+Check XR' },
+          ].map(m => (
+            <MerkPill key={m.id} label={m.label} color="#8B5CF6"
+              active={exzMode === m.id} onClick={() => onExzModeChange(m.id)} />
+          ))}
+        </div>
+      )}
       <div className="cprr-hero">
         <div className="cprr-label">COST / TEST — KSO CPRR</div>
         <div className="cprr-sub">
@@ -473,7 +488,7 @@ function CrossmatchInput({
 
 // ─── CLIAResultTable ──────────────────────────────────────────────────────────
 
-function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, cliaParamsNow }) {
+function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, cliaParamsNow, deletedParams }) {
   const panels = CLIA_PANELS[cliaType];
   const paramList = cliaType === 'SNIBE' ? SNIBE_P : WONDFO_P;
   let seq = 0;
@@ -520,7 +535,7 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
             </thead>
             <tbody>
               {panels.map(panel => {
-                const rows = paramList.filter(p => p.pan === panel);
+                const rows = paramList.filter(p => p.pan === panel && !deletedParams?.has(`${cliaType === 'SNIBE' ? 's' : 'w'}_${p.no}`));
                 if (rows.length === 0) return null;
                 const cls = PAN_CLS_CLIA[panel] || 'bc';
                 return [
@@ -568,9 +583,12 @@ function CLIAInput({
   cliaCapex, cliaTotTest, cliaCapPt,
   cliaConsBase, cliaConsInf,
   cliaConsNow, updCliaCons,
+  cliaIsFree, onToggleConsFree,
   cliaParamsNow, updCliaParam,
   markup,
   onGoToResult,
+  deletedParams,
+  onDeleteParam,
 }) {
   const data = CLIA[cliaType];
   const paramList = cliaType === 'SNIBE' ? SNIBE_P : WONDFO_P;
@@ -650,14 +668,27 @@ function CLIAInput({
 
         {/* Consumable Prices */}
         <div className="inp-card inp-card-reagent">
-          <div className="inp-card-title">HARGA KONSUMABEL</div>
+          <div className="inp-card-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>HARGA KONSUMABEL</span>
+            <button
+              onClick={onToggleConsFree}
+              className={cliaIsFree ? 'cc-free-on' : 'cc-free-off'}
+              style={{ fontSize: 11, padding: '2px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 700 }}>
+              {cliaIsFree ? 'FREE' : 'PAID'}
+            </button>
+          </div>
+          {cliaIsFree && (
+            <div style={{ fontSize: 11, color: 'var(--text-3)', marginBottom: 6, fontStyle: 'italic' }}>
+              Konsumabel disediakan gratis oleh supplier · tidak dihitung ke running cost
+            </div>
+          )}
           <div className="rp-list">
             {data.cons.map(c => {
-              const obj = cliaConsNow[c.id] || { price: c.dp, yield: c.yield };
-              const nett = obj.price;
-              const cpt  = obj.yield > 0 ? nett / obj.yield : 0;
+              const obj  = cliaConsNow[c.id] || { price: c.dp, yield: c.yield, disc: 0 };
+              const nett = obj.price * (1 - (obj.disc || 0) / 100);
+              const cpt  = (!cliaIsFree && obj.yield > 0) ? nett / obj.yield : 0;
               return (
-                <div key={c.id} className="rp-item">
+                <div key={c.id} className="rp-item" style={{ opacity: cliaIsFree ? 0.5 : 1 }}>
                   <div className="rp-name" title={c.fn}>
                     {c.fn}
                     {c.inf && <span style={{ marginLeft: 4, fontSize: 10, color: 'var(--amber)', fontWeight: 700 }}>INFECTIOUS</span>}
@@ -665,15 +696,22 @@ function CLIAInput({
                   <div className="rp-pack">{c.pack}</div>
                   <div className="rp-row2">
                     <div className="field" style={{ margin: 0 }}>
-                      <label>Harga / Pack</label>
-                      <NumInput value={obj.price} onChange={v => updCliaCons(c.id, 'price', v)} prefix="Rp" />
+                      <label>Harga Pricelist / Pack</label>
+                      <NumInput value={obj.price} onChange={v => updCliaCons(c.id, 'price', v)} prefix="Rp" disabled={cliaIsFree} />
                     </div>
                     <div className="field" style={{ margin: 0 }}>
-                      <label>Yield / Pack</label>
-                      <NumInput value={obj.yield} onChange={v => updCliaCons(c.id, 'yield', v)} suffix="test" />
+                      <label>Diskon</label>
+                      <NumInput value={obj.disc || 0} onChange={v => updCliaCons(c.id, 'disc', v)} suffix="%" disabled={cliaIsFree} />
                     </div>
                   </div>
-                  <div className="rp-nett">Cost/Test: <span>{rp(cpt)}</span></div>
+                  <div className="rp-row2" style={{ marginTop: 4 }}>
+                    <div className="field" style={{ margin: 0 }}>
+                      <label>Yield / Pack</label>
+                      <NumInput value={obj.yield} onChange={v => updCliaCons(c.id, 'yield', v)} suffix="test" disabled={cliaIsFree} />
+                    </div>
+                    <div style={{ flex: 1 }} />
+                  </div>
+                  <div className="rp-nett">Nett: <span>{rp(nett)}</span> · Cost/Test: <span>{rp(cpt)}</span></div>
                 </div>
               );
             })}
@@ -695,12 +733,13 @@ function CLIAInput({
           const items = paramList.filter(p => p.pan === panel);
           if (!items.length) return null;
           const cls = PAN_CLS_CLIA[panel] || 'bc';
+          const visibleItems = items.filter(p => !deletedParams?.has(`${cliaType === 'SNIBE' ? 's' : 'w'}_${p.no}`));
           return (
             <div key={panel} className="cc-param-group">
               <div className="cc-param-group-hdr">
                 <span className={`badge ${cls}`}>{panel}</span>
               </div>
-              {items.map(p => {
+              {visibleItems.map(p => {
                 const pid = `${cliaType === 'SNIBE' ? 's' : 'w'}_${p.no}`;
                 const obj = cliaParamsNow[pid] || { price: p.dp, disc: 0 };
                 return (
@@ -719,6 +758,7 @@ function CLIAInput({
                         {p.inf ? <span style={{ color: 'var(--amber)', fontWeight: 700 }}>●</span> : '—'}
                       </span>
                     )}
+                    <button className="cc-del-btn" onClick={() => onDeleteParam?.(pid)} style={{ marginLeft: 4 }}>×</button>
                   </div>
                 );
               })}
@@ -732,7 +772,7 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, kso, ccConsumablePerTest, ccDetResult, workDays }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, kso, ccConsumablePerTest, ccDetResult, workDays, nParam }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
@@ -757,7 +797,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
     return s + (p.testsPerKit > 0 ? nett / p.testsPerKit : 0);
   }, 0);
   const avgCptPerParam = allRegularParams.length > 0 ? totalRegCost / allRegularParams.length : 0;
-  const n = ccQC.n_param || 0;
+  const n = nParam;
   const baseCostSum = avgCptPerParam * n;
 
   // QC Control overhead (per workDays period → per patient test)
@@ -1004,21 +1044,6 @@ function CCInputCC({
       <div className="inp-card">
         <div className="inp-card-title">CAPEX</div>
 
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-2)', fontWeight: 500, marginBottom: 6 }}>Pilih Analyzer</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {cTypes.map(t => (
-              <MerkPill
-                key={t.label}
-                label={t.label}
-                color={C_COLORS[t.label]}
-                active={cType === t.label}
-                onClick={() => setCType(t.label)}
-              />
-            ))}
-          </div>
-        </div>
-
         <div className="field">
           <label>Harga Analyzer</label>
           <NumInput value={cSet.price} onChange={v => updC('price', v)} prefix="Rp" />
@@ -1185,12 +1210,7 @@ function CCInputCC({
                           </span>
                         </label>
                       )}
-                      {p.custom && !isCtrl && (
-                        <button className="cc-del-btn" onClick={() => delCCParam(p.id)}>×</button>
-                      )}
-                      {p.custom && isCtrl && (
-                        <button className="cc-del-btn" style={{ marginLeft: 2 }} onClick={() => delCCParam(p.id)}>×</button>
-                      )}
+                      <button className="cc-del-btn" style={isCtrl ? { marginLeft: 2 } : {}} onClick={() => delCCParam(p.id)}>×</button>
                     </span>
                   </div>
                 );
@@ -1203,11 +1223,6 @@ function CCInputCC({
                     PENGATURAN QC &amp; KALIBRASI
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jumlah parameter</span>
-                      <SmallNumInput value={ccQC.n_param} onChange={v => setCCQC(q => ({ ...q, n_param: v }))} tiny />
-                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>param</span>
-                    </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                       <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kontrol / hari</span>
                       <SmallNumInput value={ccQC.n_ctrl} onChange={v => setCCQC(q => ({ ...q, n_ctrl: v }))} tiny />
@@ -1309,7 +1324,7 @@ function initCliaSet() {
 function initCliaCons() {
   const build = (brand) => {
     const obj = {};
-    CLIA[brand].cons.forEach(c => { obj[c.id] = { price: c.dp, yield: c.yield }; });
+    CLIA[brand].cons.forEach(c => { obj[c.id] = { price: c.dp, yield: c.yield, disc: 0 }; });
     return obj;
   };
   return { SNIBE: build('SNIBE'), WONDFO: build('WONDFO') };
@@ -1338,7 +1353,7 @@ function initCCParams() {
   }));
   base.push({
     id: 'cc_cal', name: 'Calibrator', panel: 'Control',
-    pack: '1 set', testsPerKit: 1, price: 0, disc: 0, custom: false, free: true,
+    pack: '5 mL/vial', testsPerKit: 1, price: 1834000, disc: 0, custom: false, free: true,
   });
   return base;
 }
@@ -1386,10 +1401,12 @@ export default function Dashboard() {
   const [cliaUps,     setCliaUps]     = useState(0);
   const [cliaLis,     setCliaLis]     = useState(0);
   const [cliaCons,    setCliaCons]    = useState(initCliaCons);
+  const [cliaConsFree, setCliaConsFree] = useState({ SNIBE: false, WONDFO: false });
   const [cliaParams,  setCliaParams]  = useState(initCliaParams);
+  const [cliaDeletedParams, setCliaDeletedParams] = useState({ SNIBE: new Set(), WONDFO: new Set() });
 
   // ── CAPEX ──
-  const curSet  = tab === 'hemato' ? hSet[hType] : cSet[cType];
+  const curSet  = (tab === 'hemato' ? hSet[hType] : cSet[cType]) || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 };
   const aNett   = curSet.price * (1 - curSet.disc / 100);
   const bNett   = backupOn ? backupPrice * (1 - backupDisc / 100) : 0;
   const totCap  = aNett + ups + lis + bNett;
@@ -1408,7 +1425,7 @@ export default function Dashboard() {
   const ccConsumablePerTest = ccDetResult ? ccDetResult.total : 0;
 
   // ── Crossmatch computed ──
-  const xmCurSet   = xmSet[xmType];
+  const xmCurSet   = xmSet[xmType] || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 };
   const xmANett    = xmCurSet.price * (1 - xmCurSet.disc / 100);
   const xmCapex    = xmANett + xmUps + xmLis;
   const xmTotTest  = xmCurSet.kso * xmCurSet.tests;
@@ -1423,30 +1440,31 @@ export default function Dashboard() {
   const xmSell = sellOf(xmCapPt + (xmRes ? xmRes.total : 0), xmCurSet.markup);
 
   // ── CLIA computed ──
-  const cliaCurSet  = cliaSet[cliaType];
+  const cliaCurSet  = cliaSet[cliaType] || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 };
   const cliaANett   = cliaCurSet.price * (1 - cliaCurSet.disc / 100);
   const cliaCapex   = cliaANett + cliaUps + cliaLis;
   const cliaTotTest = cliaCurSet.kso * cliaCurSet.tests;
   const cliaCapPt   = cliaTotTest > 0 ? cliaCapex / cliaTotTest : 0;
-  const cliaConsNow = cliaCons[cliaType];
-  const cliaConsBase = CLIA[cliaType].cons
+  const cliaConsNow  = cliaCons[cliaType];
+  const cliaIsFree   = cliaConsFree[cliaType];
+  const cliaConsBase = cliaIsFree ? 0 : CLIA[cliaType].cons
     .filter(c => !c.inf)
     .reduce((s, c) => {
-      const cv = cliaConsNow[c.id] || { price: c.dp, yield: c.yield };
-      return s + (cv.yield > 0 ? cv.price / cv.yield : 0);
+      const cv = cliaConsNow[c.id] || { price: c.dp, yield: c.yield, disc: 0 };
+      const nett = cv.price * (1 - (cv.disc || 0) / 100);
+      return s + (cv.yield > 0 ? nett / cv.yield : 0);
     }, 0);
   const iwashCons = CLIA[cliaType].cons.find(c => c.inf);
-  const iwashCpt = iwashCons
-    ? (() => { const cv = cliaConsNow[iwashCons.id] || { price: iwashCons.dp, yield: iwashCons.yield }; return cv.yield > 0 ? cv.price / cv.yield : 0; })()
+  const iwashCpt = (!cliaIsFree && iwashCons)
+    ? (() => { const cv = cliaConsNow[iwashCons.id] || { price: iwashCons.dp, yield: iwashCons.yield, disc: 0 }; const nett = cv.price * (1 - (cv.disc || 0) / 100); return cv.yield > 0 ? nett / cv.yield : 0; })()
     : 0;
   const cliaConsInf = cliaConsBase + iwashCpt;
   const cliaParamsNow = cliaParams[cliaType];
 
-  // ── Reagent nett maps (hemato) — input prices are Harga Jual/Kit, convert to nett ──
-  const hMarkup = curSet.markup;
+  // ── Reagent nett maps (hemato) — nett = pricelist × (1 − disc) ──
   const rpNettMap = {};
   Object.entries(hRp[hType]).forEach(([id, obj]) => {
-    rpNettMap[id] = hMarkup < 100 ? obj.price * (1 - hMarkup / 100) : 0;
+    rpNettMap[id] = obj.price * (1 - obj.disc / 100);
   });
 
   // ── Calc (hemato) ──
@@ -1463,9 +1481,10 @@ export default function Dashboard() {
   const updXmRp = (id, fld, v) => setXmRp(p => ({ ...p, [xmType]: { ...p[xmType], [id]: { ...p[xmType][id], [fld]: v } } }));
   const updXmMethod = (m) => setXmMethod(prev => ({ ...prev, [xmType]: m }));
 
-  const updClia     = (f, v) => setCliaSet(p => ({ ...p, [cliaType]: { ...p[cliaType], [f]: v } }));
-  const updCliaCons = (id, fld, v) => setCliaCons(p => ({ ...p, [cliaType]: { ...p[cliaType], [id]: { ...p[cliaType][id], [fld]: v } } }));
-  const updCliaParam = (pid, fld, v) => setCliaParams(p => ({ ...p, [cliaType]: { ...p[cliaType], [pid]: { ...p[cliaType][pid], [fld]: v } } }));
+  const updClia         = (f, v) => setCliaSet(p => ({ ...p, [cliaType]: { ...p[cliaType], [f]: v } }));
+  const updCliaCons     = (id, fld, v) => setCliaCons(p => ({ ...p, [cliaType]: { ...p[cliaType], [id]: { ...p[cliaType][id], [fld]: v } } }));
+  const updCliaParam    = (pid, fld, v) => setCliaParams(p => ({ ...p, [cliaType]: { ...p[cliaType], [pid]: { ...p[cliaType][pid], [fld]: v } } }));
+  const toggleCliaFree  = () => setCliaConsFree(p => ({ ...p, [cliaType]: !p[cliaType] }));
 
   const updHCtrl     = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], [f]: v } }));
   const updHCtrlCtrl = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], ctrl: { ...p[hType].ctrl, [f]: v } } }));
@@ -1531,6 +1550,8 @@ export default function Dashboard() {
   const getRpObj   = (id) => hRp[hType][id];
   const setRpField = (id, fld, v) => updHRp(id, fld, v);
 
+  const nParam = ccParams.filter(p => p.panel !== 'Control' && p.panel !== 'Consumable').length;
+
   return (
     <div>
       {/* ── Header ── */}
@@ -1591,168 +1612,17 @@ export default function Dashboard() {
                 <span className="sel-desc">{HEMATO[hType].diff} · {hType}</span>
               </div>
 
-              {hType === 'EXZ8000' && (
-                <div className="sel-row">
-                  <span className="sel-label">MODE TEST</span>
-                  {HEMATO.EXZ8000.testModes.map(m => (
-                    <MerkPill key={m.id} label={m.label} color="#8B5CF6"
-                      active={exzMode === m.id} onClick={() => setExzMode(m.id)} />
+              <div className="sel-row">
+                <span className="sel-label">PRESET TEST/BLN</span>
+                <div className="preset-grid">
+                  {HEMATO[hType].testPresets.map(v => (
+                    <button key={v} onClick={() => updH('tests', v)}
+                      className={`preset-btn${curSet.tests === v ? ' active' : ''}`}>
+                      {fmt(v)}
+                    </button>
                   ))}
                 </div>
-              )}
-
-              {hType === 'EXZ8000' && (
-                <div className="sel-row">
-                  <span className="sel-label">PRESET TEST/BLN</span>
-                  <div className="preset-grid">
-                    {HEMATO.EXZ8000.testPresets.map(v => (
-                      <button key={v} onClick={() => updH('tests', v)}
-                        className={`preset-btn${curSet.tests === v ? ' active' : ''}`}>
-                        {fmt(v)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {hType === 'EXZ8000' && (exzMode === 'cbc_diff_xn' || exzMode === 'cbc_diff_ret_xr') && (
-                <div className="sel-row" style={{ flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
-                  <span className="sel-label">KONTROL &amp; CAL</span>
-                  {/* Free / Paid toggle */}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {['free', 'beli'].map(opt => (
-                      <button key={opt}
-                        className={`merk-pill${(opt === 'free') === exzCtrl.free ? ' merk-active' : ''}`}
-                        style={(opt === 'free') === exzCtrl.free ? { borderColor: '#8B5CF6', color: '#8B5CF6' } : {}}
-                        onClick={() => setExzCtrl(s => ({ ...s, free: opt === 'free' }))}>
-                        {opt === 'free' ? 'Free (Overhead)' : 'Beli (Pricelist)'}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Control price */}
-                  <div className="rp-item" style={{ minWidth: 220 }}>
-                    <div className="rp-name">{exzMode === 'cbc_diff_xn' ? 'Check-XN Control' : 'Check-XR Control'}</div>
-                    <div className="rp-row2">
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Harga Beli</label>
-                        <NumInput
-                          value={exzMode === 'cbc_diff_xn' ? exzCtrl.xn.price : exzCtrl.xr.price}
-                          onChange={v => setExzCtrl(s => exzMode === 'cbc_diff_xn'
-                            ? { ...s, xn: { ...s.xn, price: v } }
-                            : { ...s, xr: { ...s.xr, price: v } })}
-                          prefix="Rp" />
-                      </div>
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Diskon</label>
-                        <NumInput
-                          value={exzMode === 'cbc_diff_xn' ? exzCtrl.xn.disc : exzCtrl.xr.disc}
-                          onChange={v => setExzCtrl(s => exzMode === 'cbc_diff_xn'
-                            ? { ...s, xn: { ...s.xn, disc: v } }
-                            : { ...s, xr: { ...s.xr, disc: v } })}
-                          suffix="%" />
-                      </div>
-                    </div>
-                  </div>
-                  {/* Calibrator price */}
-                  <div className="rp-item" style={{ minWidth: 220 }}>
-                    <div className="rp-name">CAL Calibrator</div>
-                    <div className="rp-row2">
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Harga Beli</label>
-                        <NumInput value={exzCtrl.cal.price}
-                          onChange={v => setExzCtrl(s => ({ ...s, cal: { ...s.cal, price: v } }))}
-                          prefix="Rp" />
-                      </div>
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Diskon</label>
-                        <NumInput value={exzCtrl.cal.disc}
-                          onChange={v => setExzCtrl(s => ({ ...s, cal: { ...s.cal, disc: v } }))}
-                          suffix="%" />
-                      </div>
-                    </div>
-                  </div>
-                  {/* Free-mode extra inputs */}
-                  {exzCtrl.free && (
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>
-                        Kontrol open stability <strong>25 hari</strong> / botol
-                      </span>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jml QC/hari</span>
-                        <SmallNumInput value={exzCtrl.n_qc}
-                          onChange={v => setExzCtrl(s => ({ ...s, n_qc: v }))} tiny />
-                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>run</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi/25 hari</span>
-                        <SmallNumInput value={exzCtrl.n_cal}
-                          onChange={v => setExzCtrl(s => ({ ...s, n_cal: v }))} tiny />
-                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {hType !== 'EXZ8000' && (
-                <div className="sel-row" style={{ flexWrap: 'wrap', gap: 12, alignItems: 'flex-start' }}>
-                  <span className="sel-label">KONTROL &amp; CAL</span>
-                  {/* Free / Paid toggle */}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {['free', 'beli'].map(opt => (
-                      <button key={opt}
-                        className={`merk-pill${(opt === 'free') === hCtrl[hType]?.free ? ' merk-active' : ''}`}
-                        style={(opt === 'free') === hCtrl[hType]?.free ? { borderColor: H_COLORS[hType], color: H_COLORS[hType] } : {}}
-                        onClick={() => updHCtrl('free', opt === 'free')}>
-                        {opt === 'free' ? 'Free (Overhead)' : 'Beli (Pricelist)'}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Control price */}
-                  <div className="rp-item" style={{ minWidth: 220 }}>
-                    <div className="rp-name">Harga Kontrol</div>
-                    <div className="rp-row2">
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Harga Beli</label>
-                        <NumInput value={hCtrl[hType]?.ctrl.price || 0} onChange={v => updHCtrlCtrl('price', v)} prefix="Rp" />
-                      </div>
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Diskon</label>
-                        <NumInput value={hCtrl[hType]?.ctrl.disc || 0} onChange={v => updHCtrlCtrl('disc', v)} suffix="%" />
-                      </div>
-                    </div>
-                  </div>
-                  {/* Calibrator price */}
-                  <div className="rp-item" style={{ minWidth: 220 }}>
-                    <div className="rp-name">Harga Kalibrator</div>
-                    <div className="rp-row2">
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Harga Beli</label>
-                        <NumInput value={hCtrl[hType]?.cal.price || 0} onChange={v => updHCtrlCal('price', v)} prefix="Rp" />
-                      </div>
-                      <div className="field" style={{ margin: 0 }}>
-                        <label>Diskon</label>
-                        <NumInput value={hCtrl[hType]?.cal.disc || 0} onChange={v => updHCtrlCal('disc', v)} suffix="%" />
-                      </div>
-                    </div>
-                  </div>
-                  {/* Free-mode extra inputs */}
-                  {hCtrl[hType]?.free && (
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jml QC/hari</span>
-                        <SmallNumInput value={hCtrl[hType]?.n_qc ?? 0} onChange={v => updHCtrl('n_qc', v)} tiny />
-                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>run</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kalibrasi/bulan</span>
-                        <SmallNumInput value={hCtrl[hType]?.n_cal ?? 0} onChange={v => updHCtrl('n_cal', v)} tiny />
-                        <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              </div>
 
               <div className="input-grid">
                 {/* CAPEX */}
@@ -1870,31 +1740,153 @@ export default function Dashboard() {
                   <div className="inp-card-title">HARGA REAGEN (PRICELIST)</div>
                   <div className="rp-list">
                     {reagents.map(r => {
-                      const obj      = getRpObj(r.id);
-                      const nett     = curSet.markup < 100 ? obj.price * (1 - curSet.markup / 100) : 0;
-                      const excelKit = hRes && hReagenCpt > 0 && sellPrice > 0
-                        ? nett * sellPrice / hReagenCpt
-                        : null;
+                      const obj  = getRpObj(r.id);
+                      const nett = obj.price * (1 - obj.disc / 100);
                       return (
                         <div key={r.id} className="rp-item">
                           <div className="rp-name" title={r.fn}>{r.fn}</div>
                           <div className="rp-pack">{r.pack}</div>
                           <div className="rp-row2">
                             <div className="field" style={{ margin: 0 }}>
-                              <label>Harga Jual / Kit (Pricelist)</label>
+                              <label>Harga Pricelist / Kit</label>
                               <NumInput value={obj.price} onChange={v => setRpField(r.id, 'price', v)} prefix="Rp" />
                             </div>
-                          </div>
-                          {excelKit !== null && (
-                            <div className="rp-nett" style={{ color: '#92400E', background: '#FFF7ED', borderRadius: 4, padding: '3px 6px', marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
-                              <span>→ Harga KSO di Excel:</span>
-                              <span style={{ fontWeight: 700 }}>{rp(excelKit)}</span>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={obj.disc} onChange={v => setRpField(r.id, 'disc', v)} suffix="%" />
                             </div>
-                          )}
+                          </div>
+                          <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
                         </div>
                       );
                     })}
                   </div>
+                  {/* Kontrol & Kalibrator */}
+                  <div className="sep" style={{ margin: '10px 0' }} />
+                  <div className="inp-card-title" style={{ marginBottom: 8 }}>KONTROL &amp; KALIBRATOR</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                    {['free', 'beli'].map(opt => {
+                      const isFree = hType === 'EXZ8000' ? exzCtrl.free : hCtrl[hType]?.free;
+                      const active = (opt === 'free') === isFree;
+                      const color  = H_COLORS[hType] || '#6366F1';
+                      return (
+                        <button key={opt}
+                          className={`merk-pill${active ? ' merk-active' : ''}`}
+                          style={active ? { borderColor: color, color } : {}}
+                          onClick={() => hType === 'EXZ8000'
+                            ? setExzCtrl(s => ({ ...s, free: opt === 'free' }))
+                            : updHCtrl('free', opt === 'free')}>
+                          {opt === 'free' ? 'Free (Overhead)' : 'Beli (Pricelist)'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="rp-list">
+                    {/* Kontrol */}
+                    {hType === 'EXZ8000' ? (
+                      <>
+                        <div className="rp-item">
+                          <div className="rp-name">Check-XN Control</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={exzCtrl.xn.price} onChange={v => setExzCtrl(s => ({ ...s, xn: { ...s.xn, price: v } }))} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={exzCtrl.xn.disc} onChange={v => setExzCtrl(s => ({ ...s, xn: { ...s.xn, disc: v } }))} suffix="%" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="rp-item">
+                          <div className="rp-name">Check-XR Control</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={exzCtrl.xr.price} onChange={v => setExzCtrl(s => ({ ...s, xr: { ...s.xr, price: v } }))} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={exzCtrl.xr.disc} onChange={v => setExzCtrl(s => ({ ...s, xr: { ...s.xr, disc: v } }))} suffix="%" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="rp-item">
+                          <div className="rp-name">CAL Calibrator</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={exzCtrl.cal.price} onChange={v => setExzCtrl(s => ({ ...s, cal: { ...s.cal, price: v } }))} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={exzCtrl.cal.disc} onChange={v => setExzCtrl(s => ({ ...s, cal: { ...s.cal, disc: v } }))} suffix="%" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="rp-item">
+                          <div className="rp-name">Harga Kontrol</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={hCtrl[hType]?.ctrl.price || 0} onChange={v => updHCtrlCtrl('price', v)} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={hCtrl[hType]?.ctrl.disc || 0} onChange={v => updHCtrlCtrl('disc', v)} suffix="%" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="rp-item">
+                          <div className="rp-name">Harga Kalibrator</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={hCtrl[hType]?.cal.price || 0} onChange={v => updHCtrlCal('price', v)} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={hCtrl[hType]?.cal.disc || 0} onChange={v => updHCtrlCal('disc', v)} suffix="%" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {/* QC settings when Free */}
+                  {(hType === 'EXZ8000' ? exzCtrl.free : hCtrl[hType]?.free) && (
+                    <div className="cc-qc-settings">
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', marginBottom: 6, letterSpacing: '0.5px' }}>
+                        PENGATURAN QC &amp; KALIBRASI
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Jml QC/hari</span>
+                          {hType === 'EXZ8000' ? (
+                            <SmallNumInput value={exzCtrl.n_qc} onChange={v => setExzCtrl(s => ({ ...s, n_qc: v }))} tiny />
+                          ) : (
+                            <SmallNumInput value={hCtrl[hType]?.n_qc ?? 0} onChange={v => updHCtrl('n_qc', v)} tiny />
+                          )}
+                          <span style={{ fontSize: 10, color: 'var(--text-3)' }}>run</span>
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: 11, color: 'var(--text-2)' }}>
+                            {hType === 'EXZ8000' ? 'Kalibrasi/25 hari' : 'Kalibrasi/bulan'}
+                          </span>
+                          {hType === 'EXZ8000' ? (
+                            <SmallNumInput value={exzCtrl.n_cal} onChange={v => setExzCtrl(s => ({ ...s, n_cal: v }))} tiny />
+                          ) : (
+                            <SmallNumInput value={hCtrl[hType]?.n_cal ?? 0} onChange={v => updHCtrl('n_cal', v)} tiny />
+                          )}
+                          <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kali</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Running cost summary — perbandingan KSO vs konversi reagen */}
                   {hRes && D > 0 && (
                     <div style={{ borderTop: '2px solid var(--bdr)', marginTop: 10, paddingTop: 10 }}>
@@ -1928,7 +1920,26 @@ export default function Dashboard() {
 
           {/* ══ CC INPUT ══ */}
           {tab === 'cc' && (
-            <CCInputCC
+            <>
+              <div className="sel-row">
+                <span className="sel-label">PILIH ANALYZER</span>
+                {Object.values(CC).map(t => (
+                  <MerkPill key={t.label} label={t.label} color={C_COLORS[t.label]}
+                    active={cType === t.label} onClick={() => setCType(t.label)} />
+                ))}
+              </div>
+              <div className="sel-row">
+                <span className="sel-label">PRESET TEST/BLN</span>
+                <div className="preset-grid">
+                  {CC[cType].testPresets.map(v => (
+                    <button key={v} onClick={() => updC('tests', v)}
+                      className={`preset-btn${cSet[cType].tests === v ? ' active' : ''}`}>
+                      {fmt(v)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <CCInputCC
               cType={cType} setCType={setCType}
               cSet={cSet[cType]} updC={updC}
               ups={ups} setUps={setUps}
@@ -1948,13 +1959,14 @@ export default function Dashboard() {
               ccQC={ccQC} setCCQC={setCCQC}
               onGoToResult={() => setPage('result')}
             />
+            </>
           )}
 
           {/* ══ CROSSMATCH INPUT ══ */}
           {tab === 'xm' && (
             <>
               <div className="sel-row">
-                <span className="sel-label">PILIH MERK</span>
+                <span className="sel-label">PILIH ANALYZER</span>
                 {Object.values(CROSSMATCH).map(t => (
                   <MerkPill key={t.label} label={t.label} color={XM_COLORS[t.label]}
                     active={xmType === t.label} onClick={() => setXmType(t.label)} sub={t.brand} />
@@ -1969,6 +1981,17 @@ export default function Dashboard() {
                 <span className="sel-desc">
                   {xmCurMethod.cols} {xmType === 'LIBO' ? 'well' : 'kolom'}/test · {xmCurMethod.liss_ml} mL LISS/test
                 </span>
+              </div>
+              <div className="sel-row">
+                <span className="sel-label">PRESET TEST/BLN</span>
+                <div className="preset-grid">
+                  {CROSSMATCH[xmType].testPresets.map(v => (
+                    <button key={v} onClick={() => updXm('tests', v)}
+                      className={`preset-btn${xmCurSet.tests === v ? ' active' : ''}`}>
+                      {fmt(v)}
+                    </button>
+                  ))}
+                </div>
               </div>
               <CrossmatchInput
                 xmType={xmType}
@@ -1990,11 +2013,22 @@ export default function Dashboard() {
           {tab === 'clia' && (
             <>
               <div className="sel-row">
-                <span className="sel-label">PILIH MERK</span>
+                <span className="sel-label">PILIH ANALYZER</span>
                 {Object.entries(CLIA).map(([key, t]) => (
                   <MerkPill key={key} label={t.label} color={CLIA_COLORS[key]}
                     active={cliaType === key} onClick={() => setCliaType(key)} sub={t.brand} />
                 ))}
+              </div>
+              <div className="sel-row">
+                <span className="sel-label">PRESET TEST/BLN</span>
+                <div className="preset-grid">
+                  {CLIA[cliaType].testPresets.map(v => (
+                    <button key={v} onClick={() => updClia('tests', v)}
+                      className={`preset-btn${cliaCurSet.tests === v ? ' active' : ''}`}>
+                      {fmt(v)}
+                    </button>
+                  ))}
+                </div>
               </div>
               <CLIAInput
                 cliaType={cliaType}
@@ -2005,9 +2039,12 @@ export default function Dashboard() {
                 cliaCapex={cliaCapex} cliaTotTest={cliaTotTest} cliaCapPt={cliaCapPt}
                 cliaConsBase={cliaConsBase} cliaConsInf={cliaConsInf}
                 cliaConsNow={cliaConsNow} updCliaCons={updCliaCons}
+                cliaIsFree={cliaIsFree} onToggleConsFree={toggleCliaFree}
                 cliaParamsNow={cliaParamsNow} updCliaParam={updCliaParam}
                 markup={cliaCurSet.markup}
                 onGoToResult={() => setPage('result')}
+                deletedParams={cliaDeletedParams[cliaType]}
+                onDeleteParam={pid => setCliaDeletedParams(p => ({ ...p, [cliaType]: new Set([...p[cliaType], pid]) }))}
               />
             </>
           )}
@@ -2070,22 +2107,25 @@ export default function Dashboard() {
               totTest={totTest}
               kso={curSet.kso}
               ctrl={ctrlOverhead}
+              exzMode={exzMode}
+              onExzModeChange={hType === 'EXZ8000' ? setExzMode : undefined}
             />
           ) : tab === 'cc' ? (
-            <CCResultTable
-              params={ccParams}
-              capPt={capPt}
-              totTest={totTest}
-              cType={cType}
-              ccQC={ccQC}
-              D={D}
-              testsPerMonth={cSet[cType].tests}
-              markup={cSet[cType].markup}
-              kso={cSet[cType].kso}
-              ccConsumablePerTest={ccConsumablePerTest}
-              ccDetResult={ccDetResult}
-              workDays={workDays}
-            />
+              <CCResultTable
+                params={ccParams}
+                capPt={capPt}
+                totTest={totTest}
+                cType={cType}
+                ccQC={ccQC}
+                D={D}
+                testsPerMonth={cSet[cType].tests}
+                markup={cSet[cType].markup}
+                kso={cSet[cType].kso}
+                ccConsumablePerTest={ccConsumablePerTest}
+                ccDetResult={ccDetResult}
+                workDays={workDays}
+                nParam={nParam}
+              />
           ) : tab === 'xm' ? (
             <CrossmatchResult
               data={CROSSMATCH[xmType]}
@@ -2108,6 +2148,7 @@ export default function Dashboard() {
               totTest={cliaTotTest}
               kso={cliaCurSet.kso}
               cliaParamsNow={cliaParamsNow}
+              deletedParams={cliaDeletedParams[cliaType]}
             />
           )}
         </div>
