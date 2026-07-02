@@ -623,3 +623,109 @@ tr:hover td { background: #FAFBFF; }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE — ≤ 768px
+══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  :root { font-size: 14px; }
+
+  /* Header */
+  .hdr {
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .brand-n { font-size: 17px; }
+  .brand-t { font-size: 10px; }
+  .hdr-r   { font-size: 10px; }
+
+  /* Top page-nav — hide on mobile (replaced by bottom bar) */
+  .page-nav { display: none; }
+
+  /* Page body — single column, room for bottom bar */
+  .page-body {
+    padding: 14px 14px 90px;
+    min-height: unset;
+  }
+
+  /* Selector rows — stack label above pills */
+  .sel-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .sel-label { min-width: unset; }
+
+  /* Merk pills — bigger tap targets */
+  .merk-pill { padding: 8px 16px; font-size: 13px; }
+
+  /* Preset buttons — bigger tap targets */
+  .preset-btn { padding: 8px 14px; font-size: 12px; }
+  .preset-grid { gap: 6px; }
+
+  /* Input grid → single column */
+  .input-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* Remove height caps so cards expand fully */
+  .inp-card-reagent,
+  .cc-param-card { max-height: none; overflow-y: visible; }
+
+  /* NumInput wider on mobile */
+  .ni { font-size: 15px; padding: 8px 10px; }
+  .pfx, .sfx { padding: 8px 9px; font-size: 12px; }
+
+  /* Fields — slightly more spacing */
+  .field { margin-bottom: 12px; }
+  .field label { font-size: 12px; }
+
+  /* Result table — let it scroll horizontally */
+  .tbl-wrap { max-height: none; }
+  .page2-wrap { gap: 12px; }
+  .cprr-val { font-size: 36px; }
+
+  /* Mobile bottom navigation bar */
+  .mob-nav {
+    display: flex;
+  }
+}
+
+/* Mobile nav bar — hidden on desktop */
+.mob-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #0D2341;
+  border-top: 2px solid #1A3A6C;
+  padding: 10px 16px;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.mob-nav-btn {
+  flex: 1;
+  padding: 13px 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.15s;
+}
+.mob-nav-prev {
+  background: #1A3A6C;
+  color: #BFD7F0;
+}
+.mob-nav-prev:hover { background: #1e4a8a; }
+.mob-nav-next {
+  background: #F59E0B;
+  color: #0D2341;
+}
+.mob-nav-next:hover { background: #D97706; }

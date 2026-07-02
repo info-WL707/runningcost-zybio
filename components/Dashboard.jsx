@@ -1565,7 +1565,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* ── Page navigation ── */}
+      {/* ── Page navigation (desktop) ── */}
       <nav className="page-nav">
         <button
           className={`pnav-btn${page === 'input' ? ' pnav-active' : ''}`}
@@ -1580,6 +1580,20 @@ export default function Dashboard() {
           ▶ HASIL PERHITUNGAN
         </button>
       </nav>
+
+      {/* ── Mobile bottom navigation bar ── */}
+      <div className="mob-nav">
+        {page === 'result' && (
+          <button className="mob-nav-btn mob-nav-prev" onClick={() => { setPage('input'); window.scrollTo(0, 0); }}>
+            ← INPUT &amp; PRICELIST
+          </button>
+        )}
+        {page === 'input' && (
+          <button className="mob-nav-btn mob-nav-next" onClick={() => { setPage('result'); window.scrollTo(0, 0); }}>
+            LIHAT HASIL →
+          </button>
+        )}
+      </div>
 
       {/* ══════════════════════════════════════════════════════════════
           PAGE 1 — INPUT
