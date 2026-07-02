@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>KSO Running Cost — Zybio Analyzer</title>
+        <title>Dashboard KSO Simulator</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <Dashboard />

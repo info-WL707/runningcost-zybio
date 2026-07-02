@@ -449,10 +449,6 @@ function CrossmatchInput({
           <span className="cl">Harga Jual / Test</span>
           <span className="cv">{rp(xmSell)}</span>
         </div>
-        <div className="sep" style={{ marginTop: 12 }} />
-        <button className="goto-btn" onClick={onGoToResult}>
-          Lihat Hasil Perhitungan ▶
-        </button>
       </div>
 
       {/* Reagent Prices */}
@@ -660,10 +656,6 @@ function CLIAInput({
               <span className="cv" style={{ color: 'var(--amber)' }}>{rp(cliaConsInf)}</span>
             </div>
           )}
-          <div className="sep" style={{ marginTop: 12 }} />
-          <button className="goto-btn" onClick={onGoToResult}>
-            Lihat Hasil Perhitungan ▶
-          </button>
         </div>
 
         {/* Consumable Prices */}
@@ -1557,8 +1549,8 @@ export default function Dashboard() {
       {/* ── Header ── */}
       <header className="hdr">
         <div className="brand">
-          <span className="brand-n">ZYBIO</span>
-          <span className="brand-t">KSO Running Cost Simulator</span>
+          <span className="brand-n">Dashboard</span>
+          <span className="brand-t">KSO Simulator</span>
         </div>
         <div className="hdr-r">
           Hematologi · Kimia Klinik · Crossmatch · CLIA<br />Wahana Lifeline · 2026
