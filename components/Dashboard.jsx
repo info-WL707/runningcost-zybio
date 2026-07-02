@@ -2066,7 +2066,6 @@ export default function Dashboard() {
           PAGE 2 — HASIL PERHITUNGAN
       ══════════════════════════════════════════════════════════════ */}
       <div className="sec-result" id="mob-result">
-        <div className="mob-result-title">▼ HASIL PERHITUNGAN</div>
         <div className="page-body">
           <div className="result-topbar">
             <div className="result-config">

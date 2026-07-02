@@ -628,8 +628,6 @@ tr:hover td { background: #FAFBFF; }
 [data-page="input"]  .sec-result { display: none; }
 [data-page="result"] .sec-input  { display: none; }
 
-/* Mobile result title banner (hidden on desktop) */
-.mob-result-title { display: none; }
 
 /* ══════════════════════════════════════════════════════════════
    MOBILE — ≤ 768px
@@ -655,17 +653,20 @@ tr:hover td { background: #FAFBFF; }
     min-height: unset;
   }
 
-  /* Selector rows — stack label above pills */
+  /* Selector rows — label full-width so pills flow horizontally below */
   .sel-row {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 12px;
   }
-  .sel-label { min-width: unset; }
+  .sel-label {
+    width: 100%;
+    min-width: unset;
+    flex-shrink: 0;
+  }
 
-  /* Merk pills — bigger tap targets */
-  .merk-pill { padding: 8px 16px; font-size: 13px; }
+  /* Merk pills — compact for mobile so they fit in one row */
+  .merk-pill { padding: 6px 12px; font-size: 12px; }
 
   /* Preset buttons — bigger tap targets */
   .preset-btn { padding: 8px 14px; font-size: 12px; }
@@ -705,17 +706,6 @@ tr:hover td { background: #FAFBFF; }
 
   /* Result section divider */
   .sec-result { border-top: 3px solid #F59E0B; }
-
-  /* Result title banner */
-  .mob-result-title {
-    display: block;
-    padding: 10px 14px;
-    background: #0D2341;
-    color: #F59E0B;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 1.5px;
-  }
 
   /* Hide desktop result topbar (back button) on mobile */
   .sec-result .result-topbar { display: none; }
