@@ -365,14 +365,37 @@
 }
 .tbl-hbar {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 14px 18px 10px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px 10px;
   border-bottom: 1px solid var(--bdr);
   background: #F8FAFC;
+  flex-wrap: wrap;
 }
-.tbl-title { font-size: 14px; font-weight: 700; color: var(--text-1); }
+.tbl-title { font-size: 14px; font-weight: 700; color: var(--text-1); flex: 1; min-width: 0; }
 .tbl-note { font-size: 11px; color: var(--text-3); }
+
+/* ── Export Excel button ── */
+.export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  background: #1A56C4;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  transition: background 0.15s;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.export-btn:hover { background: #1040A0; }
+.export-btn:active { background: #0D3480; }
 .tbl-wrap { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 320px); }
 table {
   width: 100%;

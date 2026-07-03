@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P } from '../lib/data';
+import { exportHemato, exportCC, exportCrossmatch, exportCLIA } from '../lib/exportExcel';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -134,7 +135,7 @@ function MerkPill({ label, color, active, onClick, sub }) {
 
 // ─── HematoResult (Page 2) ────────────────────────────────────────────────────
 
-function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl, exzMode, onExzModeChange }) {
+function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl, exzMode, onExzModeChange, workDays, testsPerMonth, qcFree }) {
   const rows0 = data.reagents.map(r => {
     const obj         = hRpData[r.id] || { price: 0, disc: 0 };
     const nettKit     = obj.price * (1 - obj.disc / 100);
@@ -156,6 +157,25 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
     excelKit: totR > 0 && sell > 0 ? r.nettKit * sell / totR : 0,
   }));
   const markup_amt = sell - base;
+
+  function handleExportHemato() {
+    const analyzerName = `${data.label}${data.diff ? ` (${data.diff})` : ''}${modeLabel ? ` · ${modeLabel}` : ''}`;
+    exportHemato({
+      analyzerName,
+      totCap,
+      kso,
+      testsPerMonth: testsPerMonth || (kso > 0 ? totTest / kso : 0),
+      workDays: workDays || 25,
+      markup,
+      qcFree: qcFree !== undefined ? qcFree : true,
+      capPt,
+      totR,
+      ctrlOverhead: ctrl || 0,
+      sell,
+      totTest,
+      reagentRows: rows,
+    });
+  }
 
   return (
     <div className="page2-wrap">
@@ -200,6 +220,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
           <span className="tbl-note">
             {D > 0 ? 'Harga KSO di Excel = harga yang dimasukkan ke file running cost Excel agar hasilnya sama dengan KSO CPRR' : 'Lengkapi input di halaman sebelumnya'}
           </span>
+          {hRes && <button className="export-btn" onClick={handleExportHemato}>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -267,7 +288,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
 
 // ─── CrossmatchResult ─────────────────────────────────────────────────────────
 
-function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotTest, kso, xmRpNow }) {
+function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotTest, kso, xmRpNow, totCap, workDays }) {
   const totR = xmRes ? xmRes.total : 0;
   const base = xmCapPt + totR;
   const sell = sellOf(base, markup);
@@ -280,6 +301,23 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
     const sellKit = markup < 100 ? nettKit / (1 - markup / 100) : 0;
     return { ...r, nettKit, contrib, sellKit };
   });
+
+  function handleExportXM() {
+    exportCrossmatch({
+      analyzerName: data.label,
+      methodLabel: curMethod.label,
+      totCap: totCap || 0,
+      kso,
+      testsPerMonth: kso > 0 && xmTotTest > 0 ? xmTotTest / kso : 0,
+      workDays: workDays || 25,
+      markup,
+      capPt: xmCapPt,
+      totR,
+      sell,
+      totTest: xmTotTest,
+      reagentRows: rows,
+    });
+  }
 
   return (
     <div className="page2-wrap">
@@ -307,6 +345,7 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
           <span className="tbl-note">
             {xmD > 0 ? 'Harga Jual/Kit = nett ÷ (1−markup) · proporsional' : 'Lengkapi input di halaman sebelumnya'}
           </span>
+          {xmRes && <button className="export-btn" onClick={handleExportXM}>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -483,7 +522,7 @@ function CrossmatchInput({
 
 // ─── CLIAResultTable ──────────────────────────────────────────────────────────
 
-function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, testsPerMonth, D, cliaParamsNow, deletedParams }) {
+function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, testsPerMonth, D, cliaParamsNow, deletedParams, totCap, workDays, qcFree }) {
   const panels = CLIA_PANELS[cliaType];
   const paramList = cliaType === 'SNIBE' ? SNIBE_P : WONDFO_P;
   const prefix = cliaType === 'SNIBE' ? 's' : 'w';
@@ -506,6 +545,38 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
   const avgBase   = cliaCapPt + avgCons + avgReagen;
   const avgSell   = n > 0 ? Math.ceil(sellOf(avgBase, markup) / 100) * 100 : 0;
   const markupAmt = avgSell - avgBase;
+
+  function handleExportCLIA() {
+    const panelRows = [];
+    panels.forEach(panel => {
+      paramList
+        .filter(p => p.pan === panel && !deletedParams?.has(`${prefix}_${p.no}`))
+        .forEach(p => {
+          const obj = cliaParamsNow[`${prefix}_${p.no}`] || { price: p.dp, disc: 0 };
+          const nettKit = obj.price * (1 - obj.disc / 100);
+          const hppPerTest = p.kit > 0 ? nettKit / p.kit : 0;
+          const consPerTest = (p.inf && cliaType === 'WONDFO') ? cliaConsInf : cliaConsBase;
+          const costTest = cliaCapPt + consPerTest + hppPerTest;
+          const sellTest = sellOf(costTest, markup);
+          panelRows.push({ panel, name: p.name, kit: p.kit, sellTest, sellKit: sellTest * p.kit });
+        });
+    });
+    exportCLIA({
+      analyzerName: cliaType,
+      brandName: CLIA[cliaType].brand,
+      totCap: totCap || 0,
+      kso,
+      testsPerMonth,
+      workDays: workDays || 25,
+      markup,
+      qcFree: qcFree !== undefined ? qcFree : false,
+      capPt: cliaCapPt,
+      consPerTest: cliaConsBase,
+      avgSellCpt: avgSell,
+      totTest,
+      panelRows,
+    });
+  }
 
   let seq = 0;
   return (
@@ -535,6 +606,7 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost / Test — {CLIA[cliaType].brand}</span>
           <span className="tbl-note">Cost/Test = Beban Alat + Beban Konsumabel + HPP Reagen/Kit</span>
+          {n > 0 && <button className="export-btn" onClick={handleExportCLIA}>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -775,7 +847,7 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, kso, ccConsumablePerTest, ccDetResult, workDays, nParam }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, kso, ccConsumablePerTest, ccDetResult, workDays, nParam, totCap }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
@@ -834,6 +906,40 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
   const avgSellCpt = markup < 100 ? avgBaseCpt / (1 - markup / 100) : 0;
   const showAvg = (capPt > 0 || consumablePerTest > 0) && allRegularParams.length > 0;
 
+  function handleExportCC() {
+    const paramRows = displayParams
+      .filter(p => p.panel !== 'Consumable')
+      .map(p => {
+        const nett = p.price * (1 - p.disc / 100);
+        const reagentCpt = p.testsPerKit > 0 ? nett / p.testsPerKit : 0;
+        const baseCpt = capPt + consumablePerTest + totalOverhead + reagentCpt;
+        const sellTest = markup < 100 ? Math.ceil(baseCpt / (1 - markup / 100) / 100) * 100 : 0;
+        return { name: p.name, panel: p.panel, pack: p.pack, testsPerKit: p.testsPerKit, sellTest, sellKit: sellTest * p.testsPerKit };
+      });
+    const consItems = consumables.map(p => ({ name: p.name, cpt: consCptMap[p.id] ?? 0 }));
+    const qcRows = hasOverhead ? [
+      { label: 'QC Control / Test', value: qcOverhead },
+      { label: 'Kalibrasi / Test', value: calOverhead },
+    ] : [];
+    exportCC({
+      analyzerName: cType,
+      totCap: totCap || 0,
+      kso,
+      testsPerMonth,
+      workDays: wd || workDays,
+      markup,
+      capPt,
+      consumablePerTest,
+      totalOverhead,
+      hasOverhead,
+      avgSellCpt: Math.ceil(avgSellCpt / 100) * 100,
+      totTest,
+      paramRows,
+      consItems,
+      qcRows,
+    });
+  }
+
   let seq = 0;
   return (
     <div className="page2-wrap">
@@ -868,6 +974,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost — {cType}</span>
           <span className="tbl-note">Sell/Test = (Beban Alat + Consumable + Reagen) ÷ (1−markup) · Sell/Kit = Sell/Test × Test/Kit</span>
+          {showAvg && <button className="export-btn" onClick={handleExportCC}>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -2043,6 +2150,9 @@ export default function Dashboard() {
               ctrl={ctrlOverhead}
               exzMode={exzMode}
               onExzModeChange={hType === 'EXZ8000' ? setExzMode : undefined}
+              workDays={workDays}
+              testsPerMonth={curSet.tests}
+              qcFree={hType === 'EXZ8000' ? exzCtrl.free : (hCtrl[hType]?.free ?? true)}
             />
           ) : tab === 'cc' ? (
               <CCResultTable
@@ -2059,6 +2169,7 @@ export default function Dashboard() {
                 ccDetResult={ccDetResult}
                 workDays={workDays}
                 nParam={nParam}
+                totCap={totCap}
               />
           ) : tab === 'xm' ? (
             <CrossmatchResult
@@ -2071,6 +2182,8 @@ export default function Dashboard() {
               xmTotTest={xmTotTest}
               kso={xmCurSet.kso}
               xmRpNow={xmRp[xmType]}
+              totCap={xmCapex}
+              workDays={workDays}
             />
           ) : (
             <CLIAResultTable
@@ -2085,6 +2198,9 @@ export default function Dashboard() {
               D={workDays > 0 ? cliaCurSet.tests / workDays : 0}
               cliaParamsNow={cliaParamsNow}
               deletedParams={cliaDeletedParams[cliaType]}
+              totCap={cliaCapex}
+              workDays={workDays}
+              qcFree={cliaIsFree}
             />
           )}
         </div>
