@@ -206,10 +206,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
                 <th>Nama Barang</th>
                 <th className="mob-hide">Kemasan</th>
                 <th className="r">Kontrib/Test</th>
-                <th className="r" style={{ background: '#FFF7ED', color: '#92400E', fontSize: 11 }}>
-                  Harga KSO di Excel<br/>
-                  <span style={{ fontWeight: 400 }}>(masukkan ke running cost Excel)</span>
-                </th>
+                <th className="r th-sell">Sell/Kit (KSO)</th>
               </tr>
             </thead>
             <tbody>
@@ -218,9 +215,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
                   <td style={{ fontWeight: 600 }}>{r.fn}</td>
                   <td className="mob-hide" style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
                   <td className="cpt">{hRes ? fmt(r.contribTest) : '—'}</td>
-                  <td className="r" style={{ background: '#FFF7ED', color: '#92400E', fontWeight: 700 }}>
-                    {hRes && r.excelKit > 0 ? rp(r.excelKit) : '—'}
-                  </td>
+                  <td className="r td-sell">{hRes && r.excelKit > 0 ? rp(r.excelKit) : '—'}</td>
                 </tr>
               ))}
               {ctrl > 0 && (
@@ -316,7 +311,7 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
                 <th>Nama Barang</th>
                 <th className="mob-hide">Kemasan</th>
                 <th className="r">Kontrib/Test</th>
-                <th className="r th-sell">Harga Jual/Kit</th>
+                <th className="r th-sell">Sell/Kit (KSO)</th>
               </tr>
             </thead>
             <tbody>
@@ -519,14 +514,10 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
           <table>
             <thead>
               <tr>
-                <th className="mob-hide" style={{ width: 32 }}>No</th>
                 <th>Parameter</th>
-                <th className="mob-hide">Panel</th>
                 <th className="r">Kit</th>
-                <th className="r">HPP/Kit</th>
-                <th className="mob-hide r">Konsumabel/Test</th>
-                <th className="r">Cost/Test</th>
                 <th className="r th-sell">Sell/Test</th>
+                <th className="r th-sell">Sell/Kit (KSO)</th>
               </tr>
             </thead>
             <tbody>
@@ -536,28 +527,22 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
                 const cls = PAN_CLS_CLIA[panel] || 'bc';
                 return [
                   <tr key={`ph-${panel}`} className="tr-panel-hdr">
-                    <td colSpan={8}><span className={`badge ${cls}`}>{panel}</span></td>
+                    <td colSpan={4}><span className={`badge ${cls}`}>{panel}</span></td>
                   </tr>,
                   ...rows.map(p => {
-                    seq += 1;
                     const obj = cliaParamsNow[`${cliaType === 'SNIBE' ? 's' : 'w'}_${p.no}`] || { price: p.dp, disc: 0 };
                     const nettKit = obj.price * (1 - obj.disc / 100);
                     const hppPerTest = p.kit > 0 ? nettKit / p.kit : 0;
                     const consPerTest = (p.inf && cliaType === 'WONDFO') ? cliaConsInf : cliaConsBase;
                     const costTest = cliaCapPt + consPerTest + hppPerTest;
                     const sellTest = sellOf(costTest, markup);
+                    const sellKit  = sellTest * p.kit;
                     return (
                       <tr key={p.no}>
-                        <td className="mob-hide" style={{ color: 'var(--text-3)' }}>{seq}</td>
                         <td style={{ fontWeight: 700 }}>{p.name}</td>
-                        <td className="mob-hide"><span className={`badge ${cls}`}>{panel}</span></td>
                         <td className="r">{p.kit}T</td>
-                        <td className="r td-sell">{rp(nettKit)}</td>
-                        <td className="mob-hide r" style={{ color: p.inf && cliaType === 'WONDFO' ? 'var(--amber)' : '' }}>
-                          {rp(consPerTest)}
-                        </td>
-                        <td className="cpt">{rp(costTest)}</td>
                         <td className="r td-sell">{rp(sellTest)}</td>
+                        <td className="r td-sell">{rp(sellKit)}</td>
                       </tr>
                     );
                   }),
@@ -881,7 +866,6 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                 <th className="mob-hide">Panel</th>
                 <th className="mob-hide">Pack</th>
                 <th className="r">Test/Kit</th>
-                <th className="r">Base/Test</th>
                 <th className="r th-sell">Sell/Test</th>
                 <th className="r th-sell">Sell/Kit (Pricelist)</th>
               </tr>
@@ -892,7 +876,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                 if (rows.length === 0) return null;
                 return [
                   <tr key={`ph-${panel}`} className="tr-panel-hdr">
-                    <td colSpan={8}><span className={`badge ${PAN_CLS[panel]}`}>{panel}</span></td>
+                    <td colSpan={7}><span className={`badge ${PAN_CLS[panel]}`}>{panel}</span></td>
                   </tr>,
                   ...rows.map(p => {
                     seq += 1;
@@ -919,7 +903,6 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                             ? <span style={{ fontSize: 10, color: 'var(--text-3)', fontStyle: 'italic' }}>overhead</span>
                             : fmt(p.testsPerKit)}
                         </td>
-                        <td className="cpt">{rp(baseCpt)}</td>
                         <td className="r td-sell">
                           {isConsumable
                             ? <span style={{ fontSize: 10, color: 'var(--text-3)' }}>—</span>
@@ -938,7 +921,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
               {hasOverhead && (
                 <>
                   <tr className="tr-panel-hdr">
-                    <td colSpan={8}>
+                    <td colSpan={7}>
                       <span className="badge bctrl">QC &amp; Calibrator — Overhead (Free)</span>
                       <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 10 }}>
                         dibebankan ke semua patient test
@@ -960,7 +943,6 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                     </td>
                     <td className="r" style={{ color: 'var(--amber)', fontWeight: 600 }}>{rp(freeCtrlNett)}</td>
                     <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(qcOverhead)}</td>
-                    <td></td>
                   </tr>
                   {/* Calibrator */}
                   {freeCalibrator && (
@@ -976,27 +958,15 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
                       <td className="r" style={{ color: 'var(--text-3)', fontSize: 11 }}>{freeCalibrator.pack}</td>
                       <td className="r" style={{ color: 'var(--amber)', fontWeight: 600 }}>{rp(calKitCost)}</td>
                       <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(calOverhead)}</td>
-                      <td></td>
                     </tr>
                   )}
                   {/* Overhead total */}
                   <tr className="tr-sub">
-                    <td colSpan={7} style={{ color: 'var(--amber)' }}>Total Overhead QC + Cal / Test</td>
+                    <td colSpan={6} style={{ color: 'var(--amber)' }}>Total Overhead QC + Cal / Test</td>
                     <td className="cpt" style={{ color: 'var(--amber)' }}>{rp(totalOverhead)}</td>
                   </tr>
                 </>
               )}
-
-              {/* Breakdown footer */}
-              <tr className="tr-sub">
-                <td colSpan={5} style={{ fontSize: 11 }}>
-                  Beban Alat: <strong style={{ color: 'var(--red)' }}>{rp(capPt)}</strong>
-                  &nbsp;·&nbsp;Beban Consumable: <strong>{rp(consumablePerTest)}</strong>
-                  &nbsp;·&nbsp;Markup: <strong>{markup}%</strong>
-                  &nbsp;·&nbsp;Sell/Test = ROUNDUP((Alat+Cons+Reagen)÷(1−markup), 2)
-                </td>
-                <td colSpan={3}></td>
-              </tr>
             </tbody>
           </table>
         </div>
@@ -1130,10 +1100,6 @@ function CCInputCC({
           <span className="cv" style={{ color: 'var(--red)' }}>{rp(capPt)}</span>
         </div>
 
-        <div className="sep" style={{ marginTop: 12 }} />
-        <button className="goto-btn" onClick={onGoToResult}>
-          Lihat Hasil Perhitungan ▶
-        </button>
       </div>
 
       {/* ── Parameter Reagen ── */}
