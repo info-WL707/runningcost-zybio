@@ -174,13 +174,15 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
         </div>
       )}
       <div className="cprr-hero">
-        <div className="cprr-label">COST / TEST — KSO CPRR</div>
-        <div className="cprr-sub">
-          {data.label} {data.diff}{modeLabel ? ` · ${modeLabel}` : ''}
-          &nbsp;·&nbsp;{totTest > 0 ? `${fmt(totTest)} test · ${kso} bulan` : '—'}
-          {D > 0 ? ` · ${fmt(D)} test/hari` : ''}
+        <div className="cprr-left">
+          <div className="cprr-label">COST / TEST — KSO CPRR</div>
+          <div className="cprr-sub">
+            {data.label} {data.diff}{modeLabel ? ` · ${modeLabel}` : ''}
+            &nbsp;·&nbsp;{totTest > 0 ? `${fmt(totTest)} test · ${kso} bulan` : '—'}
+            {D > 0 ? ` · ${fmt(D)} test/hari` : ''}
+          </div>
+          <div className="cprr-val">{hRes ? rp(sell) : '—'}</div>
         </div>
-        <div className="cprr-val">{hRes ? rp(sell) : '—'}</div>
         <div className="cprr-pills">
           <span className="pill pl-cap">CAPEX/Test: {rp(capPt)}</span>
           <span className="pill pl-rgn">Reagen/Test: {hRes ? rp(totR) : '—'}</span>
@@ -282,13 +284,15 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
   return (
     <div className="page2-wrap">
       <div className="cprr-hero">
-        <div className="cprr-label">COST / TEST — KSO CPRR</div>
-        <div className="cprr-sub">
-          {data.label} · {curMethod.label}
-          &nbsp;·&nbsp;{xmTotTest > 0 ? `${fmt(xmTotTest)} test · ${kso} bulan` : '—'}
-          {xmD > 0 ? ` · ${fmt(xmD)} test/hari` : ''}
+        <div className="cprr-left">
+          <div className="cprr-label">COST / TEST — KSO CPRR</div>
+          <div className="cprr-sub">
+            {data.label} · {curMethod.label}
+            &nbsp;·&nbsp;{xmTotTest > 0 ? `${fmt(xmTotTest)} test · ${kso} bulan` : '—'}
+            {xmD > 0 ? ` · ${fmt(xmD)} test/hari` : ''}
+          </div>
+          <div className="cprr-val">{xmRes ? rp(sell) : '—'}</div>
         </div>
-        <div className="cprr-val">{xmRes ? rp(sell) : '—'}</div>
         <div className="cprr-pills">
           <span className="pill pl-cap">CAPEX/Test: {rp(xmCapPt)}</span>
           <span className="pill pl-rgn">Reagen/Test: {xmRes ? rp(totR) : '—'}</span>
@@ -479,36 +483,58 @@ function CrossmatchInput({
 
 // ─── CLIAResultTable ──────────────────────────────────────────────────────────
 
-function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, cliaParamsNow, deletedParams }) {
+function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, testsPerMonth, D, cliaParamsNow, deletedParams }) {
   const panels = CLIA_PANELS[cliaType];
   const paramList = cliaType === 'SNIBE' ? SNIBE_P : WONDFO_P;
+  const prefix = cliaType === 'SNIBE' ? 's' : 'w';
+
+  const activeRows = [];
+  panels.forEach(panel => {
+    paramList
+      .filter(p => p.pan === panel && !deletedParams?.has(`${prefix}_${p.no}`))
+      .forEach(p => {
+        const obj = cliaParamsNow[`${prefix}_${p.no}`] || { price: p.dp, disc: 0 };
+        const nettKit = obj.price * (1 - obj.disc / 100);
+        const hppPerTest = p.kit > 0 ? nettKit / p.kit : 0;
+        const consPerTest = (p.inf && cliaType === 'WONDFO') ? cliaConsInf : cliaConsBase;
+        activeRows.push({ hppPerTest, consPerTest });
+      });
+  });
+  const n = activeRows.length;
+  const avgReagen = n > 0 ? activeRows.reduce((s, r) => s + r.hppPerTest, 0) / n : 0;
+  const avgCons   = n > 0 ? activeRows.reduce((s, r) => s + r.consPerTest, 0) / n : 0;
+  const avgBase   = cliaCapPt + avgCons + avgReagen;
+  const avgSell   = n > 0 ? Math.ceil(sellOf(avgBase, markup) / 100) * 100 : 0;
+  const markupAmt = avgSell - avgBase;
+
   let seq = 0;
   return (
     <div className="page2-wrap">
+      <div className="cprr-hero">
+        <div className="cprr-left">
+          <div className="cprr-label">COST / TEST — KSO CPRR</div>
+          <div className="cprr-sub">
+            {CLIA[cliaType].brand}
+            {testsPerMonth > 0 ? ` · ${fmt(testsPerMonth)} test/bln` : ''}
+            {kso > 0 ? ` · ${kso} bulan` : ''}
+            {D > 0 ? ` · ${fmt(Math.round(D))} test/hari` : ''}
+          </div>
+          <div className="cprr-val">{n > 0 ? rp(avgSell) : '—'}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+            Rata-rata sell/test dari {n} parameter · reagen bervariasi per parameter
+          </div>
+        </div>
+        <div className="cprr-pills">
+          <span className="pill pl-cap">CAPEX/Test: {rp(cliaCapPt)}</span>
+          <span className="pill pl-rgn">Rata-rata Reagen/Test: {n > 0 ? rp(Math.round(avgReagen)) : '—'}</span>
+          <span className="pill pl-base">Base Cost: {n > 0 ? rp(Math.round(avgBase)) : '—'}</span>
+          <span className="pill pl-mkp">Markup {markup}%: {n > 0 ? rp(Math.round(markupAmt)) : '—'}</span>
+        </div>
+      </div>
       <div className="tbl-section">
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost / Test — {CLIA[cliaType].brand}</span>
           <span className="tbl-note">Cost/Test = Beban Alat + Beban Konsumabel + HPP Reagen/Kit</span>
-        </div>
-        <div style={{ display: 'flex', gap: 20, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid var(--bdr)', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11 }}>
-            <span style={{ color: 'var(--text-3)' }}>Beban Alat/Test:</span>
-            <strong style={{ color: 'var(--red)', marginLeft: 4 }}>{rp(cliaCapPt)}</strong>
-          </span>
-          <span style={{ fontSize: 11 }}>
-            <span style={{ color: 'var(--text-3)' }}>Konsumabel/Test (non-inf):</span>
-            <strong style={{ marginLeft: 4 }}>{rp(cliaConsBase)}</strong>
-          </span>
-          {cliaType === 'WONDFO' && (
-            <span style={{ fontSize: 11 }}>
-              <span style={{ color: 'var(--text-3)' }}>Konsumabel/Test (infectious):</span>
-              <strong style={{ color: 'var(--amber)', marginLeft: 4 }}>{rp(cliaConsInf)}</strong>
-            </span>
-          )}
-          <span style={{ fontSize: 11 }}>
-            <span style={{ color: 'var(--text-3)' }}>Total Test KSO:</span>
-            <strong style={{ marginLeft: 4 }}>{fmt(totTest)}</strong>
-          </span>
         </div>
         <div className="tbl-wrap">
           <table>
@@ -812,20 +838,22 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
   return (
     <div className="page2-wrap">
       <div className="cprr-hero">
-        <div className="cprr-label">COST / TEST — KSO CPRR</div>
-        <div className="cprr-sub">
-          {cType}
-          {testsPerMonth > 0 ? ` · ${fmt(testsPerMonth)} sampel/bln` : ''}
-          {kso > 0 ? ` · ${kso} bulan` : ''}
-          {D > 0 ? ` · ${fmt(Math.round(D))} sampel/hari` : ''}
-        </div>
-        <div className="cprr-val" style={{ fontSize: 28 }}>
-          {showAvg ? rp(Math.ceil(avgSellCpt / 100) * 100) : capPt > 0 || consumablePerTest > 0 ? rp(fixedBase) : '—'}
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 10 }}>
-          {showAvg
-            ? `Rata-rata sell/test dari ${allRegularParams.length} parameter · reagen bervariasi per parameter`
-            : `Beban tetap/test (alat + consumable${hasOverhead ? ' + QC' : ''}) · reagen bervariasi per parameter`}
+        <div className="cprr-left">
+          <div className="cprr-label">COST / TEST — KSO CPRR</div>
+          <div className="cprr-sub">
+            {cType}
+            {testsPerMonth > 0 ? ` · ${fmt(testsPerMonth)} sampel/bln` : ''}
+            {kso > 0 ? ` · ${kso} bulan` : ''}
+            {D > 0 ? ` · ${fmt(Math.round(D))} sampel/hari` : ''}
+          </div>
+          <div className="cprr-val" style={{ fontSize: 28 }}>
+            {showAvg ? rp(Math.ceil(avgSellCpt / 100) * 100) : capPt > 0 || consumablePerTest > 0 ? rp(fixedBase) : '—'}
+          </div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>
+            {showAvg
+              ? `Rata-rata sell/test dari ${allRegularParams.length} parameter · reagen bervariasi per parameter`
+              : `Beban tetap/test (alat + consumable${hasOverhead ? ' + QC' : ''}) · reagen bervariasi per parameter`}
+          </div>
         </div>
         <div className="cprr-pills">
           <span className="pill pl-cap">CAPEX/Test: {rp(capPt)}</span>
@@ -840,22 +868,6 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost — {cType}</span>
           <span className="tbl-note">Sell/Test = (Beban Alat + Consumable + Reagen) ÷ (1−markup) · Sell/Kit = Sell/Test × Test/Kit</span>
-        </div>
-        <div style={{ display: 'flex', gap: 20, padding: '7px 18px', background: '#F8FAFC', borderBottom: '1px solid var(--bdr)', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11 }}>
-            <span style={{ color: 'var(--text-3)' }}>Beban Alat/Test:</span>
-            <strong style={{ color: 'var(--red)', marginLeft: 4 }}>{rp(capPt)}</strong>
-          </span>
-          <span style={{ fontSize: 11 }}>
-            <span style={{ color: 'var(--text-3)' }}>Beban Consumable/Test:</span>
-            <strong style={{ marginLeft: 4 }}>{rp(consumablePerTest)}</strong>
-          </span>
-          {hasOverhead && (
-            <span style={{ fontSize: 11 }}>
-              <span style={{ color: 'var(--text-3)' }}>Overhead QC+Cal/Test:</span>
-              <strong style={{ color: 'var(--amber)', marginLeft: 4 }}>{rp(totalOverhead)}</strong>
-            </span>
-          )}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -1539,16 +1551,6 @@ export default function Dashboard() {
         </button>
       </nav>
 
-      {/* ── Mobile bottom navigation bar ── */}
-      <div className="mob-nav">
-        <button className="mob-nav-btn mob-nav-prev" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-          ↑ INPUT &amp; PRICELIST
-        </button>
-        <button className="mob-nav-btn mob-nav-next" onClick={() => document.getElementById('mob-result')?.scrollIntoView({ behavior: 'smooth' })}>
-          LIHAT HASIL ↓
-        </button>
-      </div>
-
       {/* ══════════════════════════════════════════════════════════════
           PAGE 1 — INPUT
       ══════════════════════════════════════════════════════════════ */}
@@ -2025,43 +2027,6 @@ export default function Dashboard() {
       ══════════════════════════════════════════════════════════════ */}
       <div className="sec-result" id="mob-result">
         <div className="page-body">
-          <div className="result-topbar">
-            <div className="result-config">
-              <span
-                className="merk-dot"
-                style={{
-                  background: tab === 'hemato' ? H_COLORS[hType]
-                    : tab === 'cc' ? C_COLORS[cType]
-                    : tab === 'xm' ? XM_COLORS[xmType]
-                    : CLIA_COLORS[cliaType],
-                  width: 10, height: 10, display: 'inline-block', borderRadius: '50%', marginRight: 6,
-                }}
-              />
-              <strong>{tab === 'hemato' ? hType : tab === 'cc' ? cType : tab === 'xm' ? xmType : CLIA[cliaType].brand}</strong>
-              {tab === 'hemato' && exzModeLabel && (
-                <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>· {exzModeLabel}</span>
-              )}
-              {tab === 'xm' && (
-                <span style={{ color: 'var(--text-3)', marginLeft: 6 }}>· {xmCurMethod.label}</span>
-              )}
-              <span style={{ color: 'var(--text-3)', marginLeft: 12 }}>
-                {tab === 'xm'
-                  ? `KSO ${xmCurSet.kso} bln · ${fmt(xmCurSet.tests)} test/bln · markup ${xmCurSet.markup}% · Total CAPEX ${rp(xmCapex)}`
-                  : tab === 'clia'
-                  ? `KSO ${cliaCurSet.kso} bln · ${fmt(cliaCurSet.tests)} test/bln · markup ${cliaCurSet.markup}% · CAPEX ${rp(cliaCapex)} · Kons/test ${rp(cliaConsBase)}`
-                  : <>
-                      KSO {curSet.kso} bln · {fmt(curSet.tests)} {tab === 'hemato' ? 'test' : 'sampel'}/bln
-                      {tab === 'cc' && curSet.batch > 0 && ` · batch ${fmt(curSet.batch)} sesi/hari`}
-                      &nbsp;· markup {curSet.markup}% · Total CAPEX {rp(totCap)}
-                    </>
-                }
-              </span>
-            </div>
-            <button className="back-btn" onClick={() => setPage('input')}>
-              ◀ Edit Input
-            </button>
-          </div>
-
           {tab === 'hemato' ? (
             <HematoResult
               data={HEMATO[hType]}
@@ -2115,6 +2080,8 @@ export default function Dashboard() {
               markup={cliaCurSet.markup}
               totTest={cliaTotTest}
               kso={cliaCurSet.kso}
+              testsPerMonth={cliaCurSet.tests}
+              D={workDays > 0 ? cliaCurSet.tests / workDays : 0}
               cliaParamsNow={cliaParamsNow}
               deletedParams={cliaDeletedParams[cliaType]}
             />

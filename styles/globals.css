@@ -307,11 +307,18 @@
 .cprr-hero {
   background: linear-gradient(135deg, #0D2341 0%, #1A3A6C 100%);
   border-radius: 10px;
-  padding: 24px 28px 20px;
+  padding: 14px 18px;
   color: #fff;
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+}
+.cprr-left {
+  display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
+  flex-shrink: 0;
 }
 .cprr-label {
   font-size: 10px;
@@ -322,19 +329,19 @@
 }
 .cprr-sub { font-size: 12px; color: #94A3B8; }
 .cprr-val {
-  font-size: 48px;
+  font-size: 36px;
   font-weight: 900;
   color: #fff;
   letter-spacing: -1px;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
-  margin: 4px 0 2px;
+  margin: 2px 0 0;
 }
 .cprr-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 5px;
+  align-content: center;
 }
 .pill {
   font-size: 11px;
@@ -411,7 +418,7 @@ tr:hover td { background: #FAFBFF; }
 }
 .tr-sell-big td { font-size: 14px !important; }
 .th-sell { background: #D6E8FF !important; font-weight: 800 !important; }
-.td-sell { background: #EBF3FF; font-weight: 700; color: var(--blue); font-size: 13px; }
+.td-sell { background: #EBF3FF; font-weight: 700; color: var(--blue); font-size: 13px; white-space: nowrap; }
 
 /* ── Badges ── */
 .badge {
@@ -693,12 +700,6 @@ tr:hover td { background: #FAFBFF; }
   /* Result table — let it scroll horizontally */
   .tbl-wrap { max-height: none; }
   .page2-wrap { gap: 12px; }
-  .cprr-val { font-size: 36px; }
-
-  /* Mobile bottom navigation bar */
-  .mob-nav {
-    display: flex;
-  }
 
   /* Both sections always visible on mobile */
   [data-page] .sec-input,
@@ -714,39 +715,3 @@ tr:hover td { background: #FAFBFF; }
   .mob-hide { display: none !important; }
 }
 
-/* Mobile nav bar — hidden on desktop */
-.mob-nav {
-  display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: #0D2341;
-  border-top: 2px solid #1A3A6C;
-  padding: 10px 16px;
-  gap: 10px;
-  align-items: center;
-  justify-content: space-between;
-}
-.mob-nav-btn {
-  flex: 1;
-  padding: 13px 10px;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 0.3px;
-  transition: background 0.15s;
-}
-.mob-nav-prev {
-  background: #1A3A6C;
-  color: #BFD7F0;
-}
-.mob-nav-prev:hover { background: #1e4a8a; }
-.mob-nav-next {
-  background: #F59E0B;
-  color: #0D2341;
-}
-.mob-nav-next:hover { background: #D97706; }
