@@ -220,7 +220,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
           <span className="tbl-note">
             {D > 0 ? 'Harga KSO di Excel = harga yang dimasukkan ke file running cost Excel agar hasilnya sama dengan KSO CPRR' : 'Lengkapi input di halaman sebelumnya'}
           </span>
-          {hRes && <button className="export-btn" onClick={handleExportHemato}>Cetak</button>}
+          {hRes && <button className="export-btn" onClick={handleExportHemato}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -345,7 +345,7 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
           <span className="tbl-note">
             {xmD > 0 ? 'Harga Jual/Kit = nett ÷ (1−markup) · proporsional' : 'Lengkapi input di halaman sebelumnya'}
           </span>
-          {xmRes && <button className="export-btn" onClick={handleExportXM}>Cetak</button>}
+          {xmRes && <button className="export-btn" onClick={handleExportXM}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -606,7 +606,7 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost / Test — {CLIA[cliaType].brand}</span>
           <span className="tbl-note">Cost/Test = Beban Alat + Beban Konsumabel + HPP Reagen/Kit</span>
-          {n > 0 && <button className="export-btn" onClick={handleExportCLIA}>Cetak</button>}
+          {n > 0 && <button className="export-btn" onClick={handleExportCLIA}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -974,7 +974,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost — {cType}</span>
           <span className="tbl-note">Sell/Test = (Beban Alat + Consumable + Reagen) ÷ (1−markup) · Sell/Kit = Sell/Test × Test/Kit</span>
-          {showAvg && <button className="export-btn" onClick={handleExportCC}>Cetak</button>}
+          {showAvg && <button className="export-btn" onClick={handleExportCC}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
         </div>
         <div className="tbl-wrap">
           <table>
