@@ -1523,7 +1523,8 @@ export default function Dashboard() {
   const nParam = ccParams.filter(p => p.panel !== 'Control' && p.panel !== 'Consumable').length;
 
   return (
-    <div data-page={page}>
+    <>
+      <div data-page={page}>
       {/* ── Header ── */}
       <header className="hdr">
         <div className="brand">
@@ -2088,6 +2089,28 @@ export default function Dashboard() {
           )}
         </div>
       </div>
-    </div>
+
+      </div>
+
+      {/* ── Mobile bottom category nav — outside data-page wrapper to escape its stacking context ── */}
+      <nav className="mob-nav-bar">
+        {[
+          { key: 'hemato', label: 'Hemato', color: CAT_COLORS.hemato },
+          { key: 'cc',     label: 'CC',     color: CAT_COLORS.cc },
+          { key: 'xm',     label: 'XM',     color: CAT_COLORS.xm },
+          { key: 'clia',   label: 'CLIA',   color: CAT_COLORS.clia },
+        ].map(({ key, label, color }) => (
+          <button
+            key={key}
+            className={`mob-nav-btn${tab === key ? ' mob-nav-active' : ''}`}
+            style={tab === key ? { borderTopColor: color, color } : {}}
+            onClick={() => { setTab(key); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+          >
+            <span className="mob-nav-dot" style={{ background: color }} />
+            {label}
+          </button>
+        ))}
+      </nav>
+    </>
   );
 }

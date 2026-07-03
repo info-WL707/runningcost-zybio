@@ -635,6 +635,9 @@ tr:hover td { background: #FAFBFF; }
 [data-page="input"]  .sec-result { display: none; }
 [data-page="result"] .sec-input  { display: none; }
 
+/* ── Mobile bottom nav bar (hidden on desktop) ── */
+.mob-nav-bar { display: none; }
+
 
 /* ══════════════════════════════════════════════════════════════
    MOBILE — ≤ 768px
@@ -713,5 +716,54 @@ tr:hover td { background: #FAFBFF; }
 
   /* Hide less-important table columns on mobile */
   .mob-hide { display: none !important; }
+
+  /* CPRR hero — stack vertically */
+  .cprr-hero { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px; }
+  .cprr-val  { font-size: 28px; }
+
+  /* Mobile bottom nav bar */
+  .mob-nav-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--navy);
+    border-top: 2px solid #1A3A6C;
+    z-index: 100;
+    height: 58px;
+    padding: 0 4px;
+    align-items: stretch;
+  }
+  .mob-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    border-top: 3px solid transparent;
+    margin-top: -2px;
+    color: #5D87B5;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 6px 0;
+    letter-spacing: 0.5px;
+    transition: color 0.15s, border-top-color 0.15s;
+  }
+  .mob-nav-btn.mob-nav-active { color: #fff; }
+  .mob-nav-dot { width: 7px; height: 7px; border-radius: 50%; display: block; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TABLET — 769px – 1100px
+══════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) and (max-width: 1100px) {
+  .input-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .inp-card-reagent,
+  .cc-param-card { max-height: none; overflow-y: visible; }
 }
 
