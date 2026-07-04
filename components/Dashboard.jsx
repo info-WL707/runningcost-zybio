@@ -1227,7 +1227,7 @@ function CCInputCC({
 
         <div className="cc-param-table-hdr">
           <span style={{ flex: 2 }}>Nama</span>
-          <span style={{ flex: 3 }}>Pack</span>
+          <span className="mob-hide" style={{ flex: 3 }}>Pack</span>
           <span style={{ width: 70, textAlign: 'right' }}>Test/Kit</span>
           <span style={{ width: 90, textAlign: 'right' }}>Harga Beli</span>
           <span style={{ width: 52, textAlign: 'right' }}>Disc%</span>
@@ -1259,7 +1259,7 @@ function CCInputCC({
                             onChange={e => updCCParam(p.id, 'name', e.target.value)} placeholder="Nama" />
                         : p.name}
                     </span>
-                    <span className="cc-pr-pack">
+                    <span className="cc-pr-pack mob-hide">
                       {editable
                         ? <input className="cc-pr-text" value={p.pack}
                             onChange={e => updCCParam(p.id, 'pack', e.target.value)} placeholder="Kemasan" />
