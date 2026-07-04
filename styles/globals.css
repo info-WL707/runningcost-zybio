@@ -298,7 +298,8 @@
 .rp-list { display: flex; flex-direction: column; gap: 14px; }
 .rp-item { display: flex; flex-direction: column; gap: 3px; }
 .rp-name { font-size: 11px; font-weight: 600; color: var(--text-1); }
-.rp-pack { font-size: 10px; color: var(--text-3); margin-bottom: 3px; }
+.rp-pack { font-size: 10px; color: var(--text-3); }
+.rp-pl   { font-size: 10px; color: var(--amber, #F59E0B); font-weight: 600; margin-bottom: 3px; }
 .rp-row2 { display: grid; grid-template-columns: 1fr 80px; gap: 5px; }
 .rp-nett { font-size: 11px; color: var(--text-2); text-align: right; padding: 2px 0; }
 .rp-nett span { font-weight: 700; color: var(--green); }
@@ -538,7 +539,9 @@ tr:hover td { background: #FAFBFF; }
   min-height: 30px;
 }
 .cc-pr-name  { flex: 2; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cc-pr-pack  { flex: 3; font-size: 10px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-pr-pack  { flex: 3; font-size: 10px; color: var(--text-3); overflow: hidden; display: flex; flex-direction: column; gap: 1px; }
+.cc-pr-pack-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-pr-pl    { font-size: 10px; color: var(--amber, #F59E0B); font-weight: 600; white-space: nowrap; }
 .cc-pr-t     { width: 70px; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .cc-pr-num   { width: 90px; flex-shrink: 0; }
 .cc-pr-disc  { display: flex; align-items: center; gap: 2px; width: 52px; flex-shrink: 0; }

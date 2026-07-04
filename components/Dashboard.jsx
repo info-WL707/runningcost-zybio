@@ -1263,7 +1263,7 @@ function CCInputCC({
                       {editable
                         ? <input className="cc-pr-text" value={p.pack}
                             onChange={e => updCCParam(p.id, 'pack', e.target.value)} placeholder="Kemasan" />
-                        : p.pack}
+                        : <span className="cc-pr-pack-txt">{p.pack}</span>}
                     </span>
                     <span className="cc-pr-t">
                       {editable
@@ -1350,30 +1350,29 @@ function CCInputCC({
 
 function initHSet() {
   return {
-    Z3:      { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
-    Z52:     { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
-    Z50:     { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
-    EXZ8000: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
-    EXZ6000: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0 },
+    Z3:      { price: HEMATO.Z3.dPl,      disc: 0, kso: 0, markup: 0, tests: 0 },
+    Z52:     { price: HEMATO.Z52.dPl,     disc: 0, kso: 0, markup: 0, tests: 0 },
+    Z50:     { price: HEMATO.Z50.dPl,     disc: 0, kso: 0, markup: 0, tests: 0 },
+    EXZ8000: { price: HEMATO.EXZ8000.dPl, disc: 0, kso: 0, markup: 0, tests: 0 },
+    EXZ6000: { price: HEMATO.EXZ6000.dPl, disc: 0, kso: 0, markup: 0, tests: 0 },
   };
 }
 function initCSet() {
   return {
-    EXC200: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 },
-    EXC400: { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 },
+    EXC200: { price: CC.EXC200.dPl, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 },
+    EXC400: { price: CC.EXC400.dPl, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 },
   };
 }
 function initHRp() {
+  const rp = (analyzer) => Object.fromEntries(
+    analyzer.reagents.map(r => [r.id, { price: r.pl ?? r.dp, disc: 0 }])
+  );
   return {
-    Z3:      { lyse: {price:1550000,disc:0}, dil: {price:1550000,disc:0}, probe: {price:400000,disc:0} },
-    Z52:     { dn: {price:2500000,disc:0}, ld: {price:3125000,disc:0}, lb: {price:2500000,disc:0}, probe: {price:500000,disc:0} },
-    Z50:     { dn: {price:2500000,disc:0}, ld: {price:3125000,disc:0}, lb: {price:2500000,disc:0}, probe: {price:500000,disc:0} },
-    EXZ8000: {
-      dn:    {price:1870000, disc:0}, ld:    {price:11787000,disc:0}, ln:    {price:11787000,disc:0},
-      fd:    {price:8840000, disc:0}, fn:    {price:2550000, disc:0}, ls:    {price:3684000, disc:0},
-      dr:    {price:2947000, disc:0}, fr:    {price:9577000, disc:0}, probe: {price:800000,  disc:0},
-    },
-    EXZ6000: { dn: {price:2000000,disc:0}, ldi: {price:2600000,disc:0}, ldii: {price:3250000,disc:0}, lb: {price:2250000,disc:0}, probe: {price:400000,disc:0} },
+    Z3:      rp(HEMATO.Z3),
+    Z52:     rp(HEMATO.Z52),
+    Z50:     rp(HEMATO.Z50),
+    EXZ8000: rp(HEMATO.EXZ8000),
+    EXZ6000: rp(HEMATO.EXZ6000),
   };
 }
 function initXmSet() {
@@ -1422,11 +1421,12 @@ function initCCParams() {
     panel:       p.pan,
     pack:        p.pack,
     testsPerKit: p.t,
-    price:       p.dp,
+    price:       p.pl ?? p.dp,
     disc:        0,
     custom:      false,
     free:        p.pan === 'Control',
     qc_active:   false,
+    pl:          p.pl,
   }));
   base.push({
     id: 'cc_cal', name: 'Calibrator', panel: 'Control',
@@ -1449,21 +1449,21 @@ export default function Dashboard() {
   const [workDays,    setWorkDays]    = useState(0);
   const [backupOn,    setBackupOn]    = useState(false);
   const [backupKey,   setBackupKey]   = useState('Z3');
-  const [backupPrice, setBackupPrice] = useState(115e6);
+  const [backupPrice, setBackupPrice] = useState(HEMATO.Z3.dPl);
   const [backupDisc,  setBackupDisc]  = useState(0);
   const [hRp,         setHRp]         = useState(initHRp);
   const [exzMode,     setExzMode]     = useState('cbc_diff_ret');
   const [exzCtrl,     setExzCtrl]     = useState({
     free: true, n_qc: 0, n_cal: 0,
-    xn:  { price: 5894000,  disc: 0 },
-    xr:  { price: 11787000, disc: 0 },
-    cal: { price: 1700000,  disc: 0 },
+    xn:  { price: HEMATO.EXZ8000.xnCtrlPl, disc: 0 },
+    xr:  { price: HEMATO.EXZ8000.xrCtrlPl, disc: 0 },
+    cal: { price: HEMATO.EXZ8000.calPl,    disc: 0 },
   });
   const [hCtrl,       setHCtrl]       = useState({
-    Z3:      { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
-    Z52:     { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
-    Z50:     { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
-    EXZ6000: { free: true, n_qc: 0, n_cal: 0, ctrl: { price: 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z3:      { free: true, n_qc: 0, n_cal: 0, ctrl: { price: HEMATO.Z3.ctrlPl      ?? 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z52:     { free: true, n_qc: 0, n_cal: 0, ctrl: { price: HEMATO.Z52.ctrlPl     ?? 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    Z50:     { free: true, n_qc: 0, n_cal: 0, ctrl: { price: HEMATO.Z50.ctrlPl     ?? 0, disc: 0 }, cal: { price: 0, disc: 0 } },
+    EXZ6000: { free: true, n_qc: 0, n_cal: 0, ctrl: { price: HEMATO.EXZ6000.ctrlPl ?? 0, disc: 0 }, cal: { price: 0, disc: 0 } },
   });
   const [ccParams,    setCCParams]    = useState(initCCParams);
   const [ccQC,        setCCQC]        = useState({ n_ctrl: 0, n_cal: 0, n_param: 0 });
@@ -1576,12 +1576,12 @@ export default function Dashboard() {
 
   const selHType = (t) => {
     setHType(t);
-    if (backupOn) { setBackupKey(t); setBackupPrice(HEMATO[t].dP); setBackupDisc(HEMATO[t].dD); }
+    if (backupOn) { setBackupKey(t); setBackupPrice(HEMATO[t].dPl ?? HEMATO[t].dP); setBackupDisc(HEMATO[t].dD); }
   };
   const onBackupKeyChange = (key) => {
     setBackupKey(key);
     const d = tab === 'hemato' ? HEMATO[key] : CC[key];
-    if (d) { setBackupPrice(d.dP); setBackupDisc(d.dD); }
+    if (d) { setBackupPrice(d.dPl ?? d.dP); setBackupDisc(d.dD); }
   };
 
   const hTypes  = Object.values(HEMATO);
