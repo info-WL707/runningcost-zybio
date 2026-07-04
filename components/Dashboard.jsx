@@ -1597,9 +1597,8 @@ export default function Dashboard() {
       const qcReagen  = exzCtrl.n_qc * 25 * hRes.cyc;
       const calReagen = exzCtrl.n_cal * hRes.cyc;
       ctrlOverhead = (nettCtrl + qcReagen + nettCal + calReagen) / tests25;
-    } else {
-      ctrlOverhead = (nettCtrl + nettCal) / tests25;
     }
+    // Beli: ctrl/cal tidak dibebankan ke test
   } else if (hType !== 'EXZ8000' && D > 0 && hRes) {
     const hc = hCtrl[hType];
     if (hc) {
@@ -1610,9 +1609,8 @@ export default function Dashboard() {
         const qcReagen  = hc.n_qc  * workDays * hRes.cyc;
         const calReagen = hc.n_cal * hRes.cyc;
         ctrlOverhead = (nettCtrl + qcReagen + nettCal + calReagen) / monthTests;
-      } else if (!hc.free && monthTests > 0) {
-        ctrlOverhead = (nettCtrl + nettCal) / monthTests;
       }
+      // Beli: ctrl/cal tidak dibebankan ke test
     }
   }
 
