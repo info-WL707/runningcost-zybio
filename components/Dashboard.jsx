@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P } from '../lib/data';
 import { exportHemato, exportCC, exportCrossmatch, exportCLIA } from '../lib/exportExcel';
+import { printHemato, printCC, printCrossmatch, printCLIA } from '../lib/printPdf';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -181,6 +182,29 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
       kompetitor: kompetitor || '',
     });
   }
+  function handlePrintHemato() {
+    const analyzerName = `${data.label}${data.diff ? ` (${data.diff})` : ''}${modeLabel ? ` · ${modeLabel}` : ''}`;
+    printHemato({
+      analyzerName,
+      backupLabel: backupLabel || '',
+      totCap,
+      kso,
+      testsPerMonth: testsPerMonth || (kso > 0 ? totTest / kso : 0),
+      workDays: workDays || 25,
+      markup,
+      qcFree: qcFree !== undefined ? qcFree : true,
+      capPt,
+      totR,
+      ctrlOverhead: ctrl || 0,
+      sell,
+      totTest,
+      reagentRows: rows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
+    });
+  }
 
   return (
     <div className="page2-wrap">
@@ -225,7 +249,8 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
           <span className="tbl-note">
             {D > 0 ? 'Harga KSO di Excel = harga yang dimasukkan ke file running cost Excel agar hasilnya sama dengan KSO CPRR' : 'Lengkapi input di halaman sebelumnya'}
           </span>
-          {hRes && <button className="export-btn" onClick={handleExportHemato}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
+          {hRes && <button className="export-btn" onClick={handleExportHemato}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak Excel</button>}
+          {hRes && <button className="print-btn" onClick={handlePrintHemato}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak PDF</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -327,6 +352,26 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
       kompetitor: kompetitor || '',
     });
   }
+  function handlePrintXM() {
+    printCrossmatch({
+      analyzerName: data.label,
+      methodLabel: curMethod.label,
+      totCap: totCap || 0,
+      kso,
+      testsPerMonth: kso > 0 && xmTotTest > 0 ? xmTotTest / kso : 0,
+      workDays: workDays || 25,
+      markup,
+      capPt: xmCapPt,
+      totR,
+      sell,
+      totTest: xmTotTest,
+      reagentRows: rows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
+    });
+  }
 
   return (
     <div className="page2-wrap">
@@ -354,7 +399,8 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
           <span className="tbl-note">
             {xmD > 0 ? 'Harga Jual/Kit = nett ÷ (1−markup) · proporsional' : 'Lengkapi input di halaman sebelumnya'}
           </span>
-          {xmRes && <button className="export-btn" onClick={handleExportXM}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
+          {xmRes && <button className="export-btn" onClick={handleExportXM}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak Excel</button>}
+          {xmRes && <button className="print-btn" onClick={handlePrintXM}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak PDF</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -590,6 +636,27 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
       kompetitor: kompetitor || '',
     });
   }
+  function handlePrintCLIA() {
+    printCLIA({
+      analyzerName: cliaType,
+      brandName: CLIA[cliaType].brand,
+      totCap: totCap || 0,
+      kso,
+      testsPerMonth,
+      workDays: workDays || 25,
+      markup,
+      qcFree: qcFree !== undefined ? qcFree : false,
+      capPt: cliaCapPt,
+      consPerTest: cliaConsBase,
+      avgSellCpt: avgSell,
+      totTest,
+      panelRows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
+    });
+  }
 
   let seq = 0;
   return (
@@ -619,7 +686,8 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost / Test — {CLIA[cliaType].brand}</span>
           <span className="tbl-note">Cost/Test = Beban Alat + Beban Konsumabel + HPP Reagen/Kit</span>
-          {n > 0 && <button className="export-btn" onClick={handleExportCLIA}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
+          {n > 0 && <button className="export-btn" onClick={handleExportCLIA}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak Excel</button>}
+          {n > 0 && <button className="print-btn" onClick={handlePrintCLIA}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak PDF</button>}
         </div>
         <div className="tbl-wrap">
           <table>
@@ -957,6 +1025,30 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
       kompetitor: kompetitor || '',
     });
   }
+  function handlePrintCC() {
+    printCC({
+      analyzerName: cType,
+      backupLabel: backupLabel || '',
+      totCap: totCap || 0,
+      kso,
+      testsPerMonth,
+      workDays: wd || workDays,
+      markup,
+      capPt,
+      consumablePerTest,
+      totalOverhead,
+      hasOverhead,
+      avgSellCpt: Math.ceil(avgSellCpt / 100) * 100,
+      totTest,
+      paramRows,
+      consItems,
+      qcRows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
+    });
+  }
 
   let seq = 0;
   return (
@@ -992,7 +1084,8 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
         <div className="tbl-hbar">
           <span className="tbl-title">Rincian Cost — {cType}</span>
           <span className="tbl-note">Sell/Test = (Beban Alat + Consumable + Reagen) ÷ (1−markup) · Sell/Kit = Sell/Test × Test/Kit</span>
-          {showAvg && <button className="export-btn" onClick={handleExportCC}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak</button>}
+          {showAvg && <button className="export-btn" onClick={handleExportCC}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak Excel</button>}
+          {showAvg && <button className="print-btn" onClick={handlePrintCC}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak PDF</button>}
         </div>
         <div className="tbl-wrap">
           <table>

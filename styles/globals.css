@@ -418,6 +418,28 @@
 }
 .export-btn:hover { background: #1040A0; }
 .export-btn:active { background: #0D3480; }
+
+/* ── Print PDF button ── */
+.print-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 14px;
+  background: #0E7490;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.print-btn:hover { background: #0C6780; }
+.print-btn:active { background: #0A5A6E; }
+
 .tbl-wrap { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 320px); }
 table {
   width: 100%;
