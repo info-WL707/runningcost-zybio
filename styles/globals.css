@@ -164,6 +164,27 @@
   border-bottom: 1px solid var(--bdr);
 }
 
+/* ── Informasi Kunjungan card ── */
+.info-card {
+  margin-bottom: 14px;
+}
+.info-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0 18px;
+}
+.txt-inp {
+  border: 1px solid var(--bdr);
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 13px;
+  color: var(--text-1);
+  background: #fff;
+  width: 100%;
+  box-sizing: border-box;
+}
+.txt-inp:focus { outline: 2px solid #BFDBFE; border-color: var(--blue); }
+
 /* ── Go-to-result button ── */
 .goto-btn {
   width: 100%;
@@ -707,6 +728,9 @@ tr:hover td { background: #FAFBFF; }
   /* Preset buttons — bigger tap targets */
   .preset-btn { padding: 8px 14px; font-size: 12px; }
   .preset-grid { gap: 6px; }
+
+  /* Informasi Kunjungan — single column on mobile */
+  .info-card-grid { grid-template-columns: 1fr; }
 
   /* Input grid → single column */
   .input-grid {

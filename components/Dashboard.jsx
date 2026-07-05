@@ -135,7 +135,7 @@ function MerkPill({ label, color, active, onClick, sub }) {
 
 // ─── HematoResult (Page 2) ────────────────────────────────────────────────────
 
-function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl, exzMode, onExzModeChange, workDays, testsPerMonth, qcFree }) {
+function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl, exzMode, onExzModeChange, workDays, testsPerMonth, qcFree, salesName, faskesName, kotaKab, kompetitor, backupLabel }) {
   const rows0 = data.reagents.map(r => {
     const obj         = hRpData[r.id] || { price: 0, disc: 0 };
     const nettKit     = obj.price * (1 - obj.disc / 100);
@@ -162,6 +162,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
     const analyzerName = `${data.label}${data.diff ? ` (${data.diff})` : ''}${modeLabel ? ` · ${modeLabel}` : ''}`;
     exportHemato({
       analyzerName,
+      backupLabel: backupLabel || '',
       totCap,
       kso,
       testsPerMonth: testsPerMonth || (kso > 0 ? totTest / kso : 0),
@@ -174,6 +175,10 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
       sell,
       totTest,
       reagentRows: rows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
     });
   }
 
@@ -288,7 +293,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
 
 // ─── CrossmatchResult ─────────────────────────────────────────────────────────
 
-function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotTest, kso, xmRpNow, totCap, workDays }) {
+function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotTest, kso, xmRpNow, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
   const totR = xmRes ? xmRes.total : 0;
   const base = xmCapPt + totR;
   const sell = sellOf(base, markup);
@@ -316,6 +321,10 @@ function CrossmatchResult({ data, xmRes, xmCapPt, markup, xmD, curMethod, xmTotT
       sell,
       totTest: xmTotTest,
       reagentRows: rows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
     });
   }
 
@@ -522,7 +531,7 @@ function CrossmatchInput({
 
 // ─── CLIAResultTable ──────────────────────────────────────────────────────────
 
-function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, testsPerMonth, D, cliaParamsNow, deletedParams, totCap, workDays, qcFree }) {
+function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, markup, totTest, kso, testsPerMonth, D, cliaParamsNow, deletedParams, totCap, workDays, qcFree, salesName, faskesName, kotaKab, kompetitor }) {
   const panels = CLIA_PANELS[cliaType];
   const paramList = cliaType === 'SNIBE' ? SNIBE_P : WONDFO_P;
   const prefix = cliaType === 'SNIBE' ? 's' : 'w';
@@ -575,6 +584,10 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
       avgSellCpt: avgSell,
       totTest,
       panelRows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
     });
   }
 
@@ -847,7 +860,7 @@ function CLIAInput({
 
 // ─── CCResultTable ────────────────────────────────────────────────────────────
 
-function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, kso, ccConsumablePerTest, ccDetResult, workDays, nParam, totCap }) {
+function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, markup, kso, ccConsumablePerTest, ccDetResult, workDays, nParam, totCap, salesName, faskesName, kotaKab, kompetitor, backupLabel }) {
   // Split: free controls (overhead) vs display params
   const freeControls  = params.filter(p => p.panel === 'Control' && p.free);
   const freeCalibrator = freeControls.find(p => p.id === 'cc_cal');
@@ -923,6 +936,7 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
     ] : [];
     exportCC({
       analyzerName: cType,
+      backupLabel: backupLabel || '',
       totCap: totCap || 0,
       kso,
       testsPerMonth,
@@ -937,6 +951,10 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
       paramRows,
       consItems,
       qcRows,
+      salesName: salesName || '',
+      faskesName: faskesName || '',
+      kotaKab: kotaKab || '',
+      kompetitor: kompetitor || '',
     });
   }
 
@@ -1481,6 +1499,10 @@ export default function Dashboard() {
   const [cliaConsFree, setCliaConsFree] = useState({ SNIBE: false, WONDFO: false });
   const [cliaParams,  setCliaParams]  = useState(initCliaParams);
   const [cliaDeletedParams, setCliaDeletedParams] = useState({ SNIBE: new Set(), WONDFO: new Set() });
+  const [salesName,  setSalesName]  = useState('');
+  const [faskesName, setFaskesName] = useState('');
+  const [kotaKab,    setKotaKab]    = useState('');
+  const [kompetitor, setKompetitor] = useState('');
 
   // ── CAPEX ──
   const curSet  = (tab === 'hemato' ? hSet[hType] : cSet[cType]) || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 };
@@ -1662,6 +1684,29 @@ export default function Dashboard() {
       ══════════════════════════════════════════════════════════════ */}
       <div className="sec-input">
         <div className="page-body">
+
+          {/* ── Informasi Kunjungan ── */}
+          <div className="inp-card info-card">
+            <div className="inp-card-title">INFORMASI KUNJUNGAN</div>
+            <div className="info-card-grid">
+              <div className="field">
+                <label>Nama Sales</label>
+                <input type="text" className="txt-inp" value={salesName} onChange={e => setSalesName(e.target.value)} placeholder="—" />
+              </div>
+              <div className="field">
+                <label>Nama Faskes</label>
+                <input type="text" className="txt-inp" value={faskesName} onChange={e => setFaskesName(e.target.value)} placeholder="—" />
+              </div>
+              <div className="field">
+                <label>Kota / Kab</label>
+                <input type="text" className="txt-inp" value={kotaKab} onChange={e => setKotaKab(e.target.value)} placeholder="—" />
+              </div>
+              <div className="field">
+                <label>Informasi Kompetitor</label>
+                <input type="text" className="txt-inp" value={kompetitor} onChange={e => setKompetitor(e.target.value)} placeholder="—" />
+              </div>
+            </div>
+          </div>
 
           {/* ── Pilih Kategori ── */}
           <div className="sel-row">
@@ -2151,6 +2196,8 @@ export default function Dashboard() {
               workDays={workDays}
               testsPerMonth={curSet.tests}
               qcFree={hType === 'EXZ8000' ? exzCtrl.free : (hCtrl[hType]?.free ?? true)}
+              salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+              backupLabel={backupOn ? (HEMATO[backupKey]?.diff ? `${HEMATO[backupKey].label} (${HEMATO[backupKey].diff})` : HEMATO[backupKey]?.label || backupKey) : ''}
             />
           ) : tab === 'cc' ? (
               <CCResultTable
@@ -2168,6 +2215,8 @@ export default function Dashboard() {
                 workDays={workDays}
                 nParam={nParam}
                 totCap={totCap}
+                salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+                backupLabel={backupOn ? (CC[backupKey]?.label || backupKey) : ''}
               />
           ) : tab === 'xm' ? (
             <CrossmatchResult
@@ -2182,6 +2231,7 @@ export default function Dashboard() {
               xmRpNow={xmRp[xmType]}
               totCap={xmCapex}
               workDays={workDays}
+              salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
           ) : (
             <CLIAResultTable
@@ -2199,6 +2249,7 @@ export default function Dashboard() {
               totCap={cliaCapex}
               workDays={workDays}
               qcFree={cliaIsFree}
+              salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
           )}
         </div>
