@@ -1430,7 +1430,7 @@ function initCCParams() {
   }));
   base.push({
     id: 'cc_cal', name: 'Calibrator', panel: 'Control',
-    pack: '5 mL/vial', testsPerKit: 1, price: 1834000, disc: 0, custom: false, free: true,
+    pack: '5 mL/vial', testsPerKit: 1, price: 2000000, disc: 0, custom: false, free: true,
   });
   return base;
 }
