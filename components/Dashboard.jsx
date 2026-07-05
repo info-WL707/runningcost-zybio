@@ -601,21 +601,22 @@ function CLIAResultTable({ cliaType, cliaCapPt, cliaConsBase, cliaConsInf, marku
   const avgSell   = n > 0 ? Math.ceil(sellOf(avgBase, markup) / 100) * 100 : 0;
   const markupAmt = avgSell - avgBase;
 
+  const panelRows = [];
+  panels.forEach(panel => {
+    paramList
+      .filter(p => p.pan === panel && !deletedParams?.has(`${prefix}_${p.no}`))
+      .forEach(p => {
+        const obj = cliaParamsNow[`${prefix}_${p.no}`] || { price: p.dp, disc: 0 };
+        const nettKit = obj.price * (1 - obj.disc / 100);
+        const hppPerTest = p.kit > 0 ? nettKit / p.kit : 0;
+        const consPerTest = (p.inf && cliaType === 'WONDFO') ? cliaConsInf : cliaConsBase;
+        const costTest = cliaCapPt + consPerTest + hppPerTest;
+        const sellTest = sellOf(costTest, markup);
+        panelRows.push({ panel, name: p.name, kit: p.kit, sellTest, sellKit: sellTest * p.kit });
+      });
+  });
+
   function handleExportCLIA() {
-    const panelRows = [];
-    panels.forEach(panel => {
-      paramList
-        .filter(p => p.pan === panel && !deletedParams?.has(`${prefix}_${p.no}`))
-        .forEach(p => {
-          const obj = cliaParamsNow[`${prefix}_${p.no}`] || { price: p.dp, disc: 0 };
-          const nettKit = obj.price * (1 - obj.disc / 100);
-          const hppPerTest = p.kit > 0 ? nettKit / p.kit : 0;
-          const consPerTest = (p.inf && cliaType === 'WONDFO') ? cliaConsInf : cliaConsBase;
-          const costTest = cliaCapPt + consPerTest + hppPerTest;
-          const sellTest = sellOf(costTest, markup);
-          panelRows.push({ panel, name: p.name, kit: p.kit, sellTest, sellKit: sellTest * p.kit });
-        });
-    });
     exportCLIA({
       analyzerName: cliaType,
       brandName: CLIA[cliaType].brand,
@@ -987,21 +988,22 @@ function CCResultTable({ params, capPt, totTest, cType, ccQC, D, testsPerMonth, 
   const avgSellCpt = markup < 100 ? avgBaseCpt / (1 - markup / 100) : 0;
   const showAvg = (capPt > 0 || consumablePerTest > 0) && allRegularParams.length > 0;
 
+  const paramRows = displayParams
+    .filter(p => p.panel !== 'Consumable')
+    .map(p => {
+      const nett = p.price * (1 - p.disc / 100);
+      const reagentCpt = p.testsPerKit > 0 ? nett / p.testsPerKit : 0;
+      const baseCpt = capPt + consumablePerTest + totalOverhead + reagentCpt;
+      const sellTest = markup < 100 ? Math.ceil(baseCpt / (1 - markup / 100) / 100) * 100 : 0;
+      return { name: p.name, panel: p.panel, pack: p.pack, testsPerKit: p.testsPerKit, sellTest, sellKit: sellTest * p.testsPerKit };
+    });
+  const consItems = consumables.map(p => ({ name: p.name, cpt: consCptMap[p.id] ?? 0 }));
+  const qcRows = hasOverhead ? [
+    { label: 'QC Control / Test', value: qcOverhead },
+    { label: 'Kalibrasi / Test', value: calOverhead },
+  ] : [];
+
   function handleExportCC() {
-    const paramRows = displayParams
-      .filter(p => p.panel !== 'Consumable')
-      .map(p => {
-        const nett = p.price * (1 - p.disc / 100);
-        const reagentCpt = p.testsPerKit > 0 ? nett / p.testsPerKit : 0;
-        const baseCpt = capPt + consumablePerTest + totalOverhead + reagentCpt;
-        const sellTest = markup < 100 ? Math.ceil(baseCpt / (1 - markup / 100) / 100) * 100 : 0;
-        return { name: p.name, panel: p.panel, pack: p.pack, testsPerKit: p.testsPerKit, sellTest, sellKit: sellTest * p.testsPerKit };
-      });
-    const consItems = consumables.map(p => ({ name: p.name, cpt: consCptMap[p.id] ?? 0 }));
-    const qcRows = hasOverhead ? [
-      { label: 'QC Control / Test', value: qcOverhead },
-      { label: 'Kalibrasi / Test', value: calOverhead },
-    ] : [];
     exportCC({
       analyzerName: cType,
       backupLabel: backupLabel || '',
