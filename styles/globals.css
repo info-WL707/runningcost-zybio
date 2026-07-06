@@ -33,14 +33,14 @@
   color: #fff;
   padding: 14px 28px;
 }
-.brand { display: flex; flex-direction: column; gap: 2px; }
-.brand-n {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 3px;
-  color: #60A5FA;
+.brand { display: flex; align-items: center; }
+.hdr-logo {
+  height: 40px;
+  max-width: 200px;
+  object-fit: contain;
+  display: block;
+  filter: brightness(0) invert(1);
 }
-.brand-t { font-size: 11px; color: #94A3B8; letter-spacing: 0.5px; }
 .hdr-r { font-size: 11px; color: #94A3B8; text-align: right; line-height: 1.6; }
 
 /* ── Page navigation (crossmatch style) ── */
@@ -719,8 +719,7 @@ tr:hover td { background: #FAFBFF; }
     padding: 10px 16px;
     gap: 8px;
   }
-  .brand-n { font-size: 17px; }
-  .brand-t { font-size: 10px; }
+  .hdr-logo { height: 28px; }
   .hdr-r   { font-size: 10px; }
 
   /* Top page-nav — hide on mobile (replaced by bottom bar) */

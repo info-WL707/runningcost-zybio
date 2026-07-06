@@ -1750,11 +1750,10 @@ export default function Dashboard() {
       {/* ── Header ── */}
       <header className="hdr">
         <div className="brand">
-          <span className="brand-n">Dashboard</span>
-          <span className="brand-t">KSO Simulator</span>
+          <img src="/logo.png" alt="Wahana Lifeline" className="hdr-logo" />
         </div>
         <div className="hdr-r">
-          Hematologi · Kimia Klinik · Crossmatch · CLIA<br />Wahana Lifeline · 2026
+          Dashboard KSO Simulator<br />Hematologi · Kimia Klinik · Crossmatch · CLIA
         </div>
       </header>
 
