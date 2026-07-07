@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P, HPLC, ELEKTRO } from '../lib/data';
-import { exportHemato, exportCC, exportCrossmatch, exportCLIA, exportHPLC, exportElektro } from '../lib/exportExcel';
-import { printHemato, printCC, printCrossmatch, printCLIA, printHPLC, printElektro } from '../lib/printPdf';
+import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P, HPLC, ELEKTRO, BLOODGAS } from '../lib/data';
+import { exportHemato, exportCC, exportCrossmatch, exportCLIA, exportHPLC, exportElektro, exportBloodGas } from '../lib/exportExcel';
+import { printHemato, printCC, printCrossmatch, printCLIA, printHPLC, printElektro, printBloodGas } from '../lib/printPdf';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -44,12 +44,13 @@ const CLIA_COLORS = {
   WONDFO: '#0891B2',
 };
 const CAT_COLORS = {
-  hemato: '#3B82F6',
-  cc:     '#10B981',
-  xm:     '#E11D48',
-  clia:   '#7C3AED',
-  hplc:   '#D97706',
+  hemato:  '#3B82F6',
+  cc:      '#10B981',
+  xm:      '#E11D48',
+  clia:    '#7C3AED',
+  hplc:    '#D97706',
   elektro: '#0D9488',
+  bg:      '#0EA5E9',
 };
 const PAN_CLS_CLIA = {
   'Cardiac/IGD':     'bc',
@@ -586,7 +587,7 @@ function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, e
                 <td colSpan={2} style={{ color: 'var(--red)' }}>
                   + CAPEX / Test&nbsp;
                   <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
-                    (Alat ÷ {fmt(elektroTotTest)} test KSO)
+                    (Alat + UPS + LIS ÷ {fmt(elektroTotTest)} test KSO)
                   </span>
                 </td>
                 <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(elektroCapPt)}</td>
@@ -616,6 +617,164 @@ function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, e
             &nbsp;·&nbsp;Fixed: 21 mL/hari · Per-test: 0.8 mL Cal A
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── BgResult ────────────────────────────────────────────────────────────────
+
+function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, bgHppKso, bgHppCprr, bgCartNett, bgQcOh, bgQcNett, bgFixedPt, bgCapPt, bgMaintPt, bgBase, bgSell, bgTotTest, bgD, bgCtrl, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
+  const isCprr   = bgMode === 'cprr';
+  const hpp      = isCprr ? bgHppCprr : bgHppKso;
+  const hppBase  = bgKitCap > 0 ? bgCartNett / bgKitCap : 0;
+  const hppResidu = hpp - hppBase;
+  const markup_amt = bgSell - bgBase;
+  const curCart  = BLOODGAS.PT1000.cartridges.find(c => c.id === bgSet.cartKey) || BLOODGAS.PT1000.cartridges[1];
+
+  function handleExport() {
+    exportBloodGas({
+      bgMode, totCap, kso: bgSet.kso, testsPerMonth: bgSet.tests,
+      workDays: workDays || 25, markup: bgSet.markup,
+      qcFree: bgCtrl.free, capPt: bgCapPt, maintPt: bgMaintPt,
+      hpp, hppBase, hppResidu,
+      qcOh: bgQcOh, base: bgBase, sell: bgSell, totTest: bgTotTest,
+      cartFn: curCart.fn, cartPack: curCart.pack, cartNett: bgCartNett,
+      kitCap: bgKitCap, real21d: bgReal21d, residue: bgResidue,
+      stability: BLOODGAS.PT1000.stability,
+      salesName: salesName || '', faskesName: faskesName || '',
+      kotaKab: kotaKab || '', kompetitor: kompetitor || '',
+    });
+  }
+  function handlePrint() {
+    printBloodGas({
+      bgMode, totCap, kso: bgSet.kso, testsPerMonth: bgSet.tests,
+      workDays: workDays || 25, markup: bgSet.markup,
+      qcFree: bgCtrl.free, capPt: bgCapPt, maintPt: bgMaintPt,
+      hpp, hppBase, hppResidu,
+      qcOh: bgQcOh, base: bgBase, sell: bgSell, totTest: bgTotTest,
+      cartFn: curCart.fn, cartPack: curCart.pack,
+      kitCap: bgKitCap, real21d: bgReal21d, residue: bgResidue,
+      stability: BLOODGAS.PT1000.stability,
+      salesName: salesName || '', faskesName: faskesName || '',
+      kotaKab: kotaKab || '', kompetitor: kompetitor || '',
+    });
+  }
+
+  return (
+    <div className="page2-wrap">
+      <div className="cprr-hero">
+        <div className="cprr-left">
+          <div className="cprr-label">{isCprr ? 'COST / TEST — KSO CPRR' : 'RUNNING COST / TEST — KSO'}</div>
+          <div className="cprr-sub">
+            {BLOODGAS.PT1000.brand}
+            &nbsp;·&nbsp;{bgTotTest > 0 ? `${fmt(bgTotTest)} test · ${bgSet.kso} bulan` : '—'}
+            {bgD > 0 ? ` · ${fmt(bgD)} test/hari` : ''}
+          </div>
+          <div className="cprr-val">{bgSet.tests > 0 ? rp(bgSell) : '—'}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 4 }}>
+            {isCprr
+              ? `Real test/21hari: ${fmt(Math.round(bgReal21d))} · Residu: ${fmt(Math.round(bgResidue))} · Kit cap: ${bgKitCap} test`
+              : `Faskes beli cartridge sendiri · HPP = nett ÷ kit cap · Residu ditanggung faskes`}
+          </div>
+        </div>
+        <div className="cprr-pills">
+          <span className="pill pl-cap">CAPEX+Maint/Test: {rp(bgFixedPt)}</span>
+          <span className="pill pl-rgn">HPP Cartridge/Test: {bgSet.tests > 0 ? rp(hpp) : '—'}</span>
+          {bgQcOh > 0 && <span className="pill pl-qc">QC/Test: {rp(bgQcOh)}</span>}
+          <span className="pill pl-base">Base Cost: {bgSet.tests > 0 ? rp(bgBase) : '—'}</span>
+          <span className="pill pl-mkp">Markup {bgSet.markup}%: {bgSet.tests > 0 ? rp(markup_amt) : '—'}</span>
+        </div>
+      </div>
+
+      <div className="tbl-section">
+        <div className="tbl-hbar">
+          <span className="tbl-title">Rincian Cost / Test — {BLOODGAS.PT1000.brand}</span>
+          <span className="tbl-note">
+            {bgSet.tests > 0
+              ? (isCprr ? 'CPRR: Residu cartridge diserap ke HPP/test · Open stability 21 hari' : 'KSO: HPP = nett ÷ kapasitas kit · Residu ditanggung faskes')
+              : 'Lengkapi input test/bulan di halaman sebelumnya'}
+          </span>
+          {bgSet.tests > 0 && <button className="export-btn" onClick={handleExport}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak Excel</button>}
+          {bgSet.tests > 0 && <button className="print-btn" onClick={handlePrint}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak PDF</button>}
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Item Biaya</th>
+                <th className="r">Kontrib / Test</th>
+                <th className="mob-hide r">Keterangan</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ fontWeight: 600 }}>HPP Cartridge (base)</td>
+                <td className="cpt">{bgSet.tests > 0 ? fmt(hppBase) : '—'}</td>
+                <td className="mob-hide" style={{ fontSize: 11, color: 'var(--text-3)' }}>Nett ÷ {bgKitCap} test/kit</td>
+              </tr>
+              {isCprr && bgResidue > 0 && (
+                <tr style={{ background: '#FFF8E1' }}>
+                  <td style={{ fontWeight: 600, color: '#B45309' }}>+ Residu Cartridge</td>
+                  <td className="cpt" style={{ color: '#B45309' }}>{fmt(hppResidu)}</td>
+                  <td className="mob-hide" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                    {fmt(Math.round(bgResidue))} test terbuang ÷ {fmt(Math.round(bgReal21d))} real test
+                  </td>
+                </tr>
+              )}
+              <tr className="tr-sub">
+                <td>HPP / Real Test {isCprr ? `(${fmt(Math.round(bgReal21d))} test/siklus)` : `(kit cap ${bgKitCap})`}</td>
+                <td className="cpt">{bgSet.tests > 0 ? fmt(hpp) : '—'}</td>
+                <td className="mob-hide" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                  {isCprr ? `Nett ÷ ${fmt(Math.round(bgReal21d))} real test` : `Nett ÷ ${bgKitCap} (kit cap)`}
+                </td>
+              </tr>
+              {bgMaintPt > 0 && (
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Beban Pemeliharaan</td>
+                  <td className="cpt">{fmt(bgMaintPt)}</td>
+                  <td className="mob-hide" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                    Rp {fmt(bgSet.maintenance)}/bln ÷ {fmt(bgSet.tests)} test/bln
+                  </td>
+                </tr>
+              )}
+              {bgQcOh > 0 && (
+                <tr className="tr-ctrl">
+                  <td>QC / Test (Free)</td>
+                  <td className="cpt">{fmt(bgQcOh)}</td>
+                  <td className="mob-hide" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                    {fmt(bgCtrl.n_qc)} kit × Rp {fmt(bgQcNett)} ÷ {fmt(Math.round(bgEffTests))} test/siklus
+                  </td>
+                </tr>
+              )}
+              <tr className="tr-capex">
+                <td style={{ color: 'var(--red)' }}>
+                  + CAPEX / Test&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
+                    (Alat ÷ {fmt(bgTotTest)} test KSO)
+                  </span>
+                </td>
+                <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(bgCapPt)}</td>
+                <td className="mob-hide" style={{ background: '#FFF5F5' }}></td>
+              </tr>
+              <tr className="tr-base">
+                <td>Base Cost / Test (sebelum markup)</td>
+                <td className="cpt">{bgSet.tests > 0 ? rp(bgBase) : '—'}</td>
+                <td className="mob-hide"></td>
+              </tr>
+              <tr className="tr-sell tr-sell-big">
+                <td>
+                  {isCprr ? 'Cost / Test KSO CPRR' : 'Running Cost / Test KSO'}&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11 }}>margin {bgSet.markup}%</span>
+                </td>
+                <td className="cpt" style={{ fontSize: 16, fontWeight: 900, color: 'var(--blue)' }}>
+                  {bgSet.tests > 0 ? rp(bgSell) : '—'}
+                </td>
+                <td className="mob-hide" style={{ background: 'var(--blue2)' }}></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -1918,6 +2077,13 @@ export default function Dashboard() {
   const [elektroSet, setElektroSet] = useState({ price: ELEKTRO.DNX6.dP, disc: 0, kso: ELEKTRO.DNX6.dK, markup: ELEKTRO.DNX6.dM, tests: ELEKTRO.DNX6.dT, mode: 'cartridge' });
   const [elektroRp,  setElektroRp]  = useState(initElektroRp);
   const [elektroCtrl,setElektroCtrl]= useState({ free: true, qc1: { price: 948000, disc: 0 }, qc2: { price: 948000, disc: 0 }, qc3: { price: 948000, disc: 0 } });
+  const [elektroUps,  setElektroUps]  = useState(0);
+  const [elektroLis,  setElektroLis]  = useState(0);
+  const [bgMode,     setBgMode]     = useState('cprr');
+  const [bgSet,      setBgSet]      = useState({ price: BLOODGAS.PT1000.dP, disc: 0, kso: BLOODGAS.PT1000.dK, markup: BLOODGAS.PT1000.dM, tests: BLOODGAS.PT1000.dT, cartKey: 'pt10_120', maintenance: BLOODGAS.PT1000.dMaint });
+  const [bgRpCart,   setBgRpCart]   = useState(() => Object.fromEntries(BLOODGAS.PT1000.cartridges.map(c => [c.id, { price: c.dp, disc: 0 }])));
+  const [bgRpQc,     setBgRpQc]     = useState({ price: BLOODGAS.PT1000.qc.dp, disc: 0 });
+  const [bgCtrl,     setBgCtrl]     = useState({ free: true, n_qc: 1 });
 
   // ── CAPEX ──
   const curSet  = (tab === 'hemato' ? hSet[hType] : cSet[cType]) || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 };
@@ -1992,7 +2158,8 @@ export default function Dashboard() {
   const hplcSell     = sellOf(hplcBase, hplcSet.markup);
 
   // ── Elektrolit computed ──
-  const elektroCapex    = elektroSet.price * (1 - elektroSet.disc / 100);
+  const elektroANett    = elektroSet.price * (1 - elektroSet.disc / 100);
+  const elektroCapex    = elektroANett + elektroUps + elektroLis;
   const elektroTotTest  = elektroSet.kso * elektroSet.tests;
   const elektroCapPt    = elektroTotTest > 0 ? elektroCapex / elektroTotTest : 0;
   const elektroD        = workDays > 0 ? elektroSet.tests / workDays : 0;
@@ -2008,6 +2175,28 @@ export default function Dashboard() {
     : 0;
   const elektroBase     = elektroCapPt + elektroTotR + elektroQcOh;
   const elektroSell     = sellOf(elektroBase, elektroSet.markup);
+
+  // ── Blood Gas computed ──
+  const bgANett    = bgSet.price * (1 - bgSet.disc / 100);
+  const bgTotTest  = bgSet.kso * bgSet.tests;
+  const bgCapPt    = bgTotTest > 0 ? bgANett / bgTotTest : 0;
+  const bgMaintPt  = bgSet.tests > 0 ? bgSet.maintenance / bgSet.tests : 0;
+  const bgD        = workDays > 0 ? bgSet.tests / workDays : 0;
+  const bgReal21d  = bgSet.tests / 30 * BLOODGAS.PT1000.stability;
+  const bgCurCart  = BLOODGAS.PT1000.cartridges.find(c => c.id === bgSet.cartKey) || BLOODGAS.PT1000.cartridges[1];
+  const bgKitCap   = bgCurCart.kit;
+  const bgEffTests = Math.min(bgReal21d, bgKitCap);
+  const bgResidue  = Math.max(0, bgKitCap - bgReal21d);
+  const bgCartRp   = bgRpCart[bgSet.cartKey] || { price: bgCurCart.dp, disc: 0 };
+  const bgCartNett = bgCartRp.price * (1 - bgCartRp.disc / 100);
+  const bgHppKso   = bgKitCap > 0 ? bgCartNett / bgKitCap : 0;
+  const bgHppCprr  = bgEffTests > 0 ? bgCartNett / bgEffTests : 0;
+  const bgHppPerTest = bgMode === 'kso' ? bgHppKso : bgHppCprr;
+  const bgQcNett   = bgRpQc.price * (1 - bgRpQc.disc / 100);
+  const bgQcOh     = bgCtrl.free && bgEffTests > 0 ? bgQcNett * bgCtrl.n_qc / bgEffTests : 0;
+  const bgFixedPt  = bgCapPt + bgMaintPt;
+  const bgBase     = bgFixedPt + bgHppPerTest + bgQcOh;
+  const bgSell     = sellOf(bgBase, bgSet.markup);
 
   // ── Reagent nett maps (hemato) — nett = pricelist × (1 − disc) ──
   const rpNettMap = {};
@@ -2048,6 +2237,10 @@ export default function Dashboard() {
   const updElektroRp  = (mode, fld, v) => setElektroRp(p => ({ ...p, [mode]: { ...p[mode], [fld]: v } }));
   const updElektroCtrl = (fld, v) => setElektroCtrl(p => ({ ...p, [fld]: v }));
   const updElektroQc  = (qid, fld, v) => setElektroCtrl(p => ({ ...p, [qid]: { ...p[qid], [fld]: v } }));
+
+  const updBg     = (f, v) => setBgSet(p => ({ ...p, [f]: v }));
+  const updBgCart = (id, fld, v) => setBgRpCart(p => ({ ...p, [id]: { ...p[id], [fld]: v } }));
+  const updBgQc   = (fld, v) => setBgRpQc(p => ({ ...p, [fld]: v }));
 
   const updCCParam = (id, field, value) =>
     setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -2118,7 +2311,7 @@ export default function Dashboard() {
           <img src="/logo.png" alt="Wahana Lifeline" className="hdr-logo" />
         </div>
         <div className="hdr-r">
-          Dashboard KSO Simulator<br />Hematologi · Kimia Klinik · Crossmatch · CLIA · HPLC · Elektrolit
+          Dashboard KSO Simulator<br />Hematologi · Kimia Klinik · Crossmatch · CLIA · HPLC · Blood Gas · Elektrolit
         </div>
       </header>
 
@@ -2182,6 +2375,8 @@ export default function Dashboard() {
               active={tab === 'hplc'} onClick={() => setTab('hplc')} />
             <MerkPill label="Elektrolit" color={CAT_COLORS.elektro}
               active={tab === 'elektro'} onClick={() => setTab('elektro')} />
+            <MerkPill label="Blood Gas" color={CAT_COLORS.bg}
+              active={tab === 'bg'} onClick={() => setTab('bg')} />
           </div>
 
           {/* ══ HEMATO INPUT ══ */}
@@ -2864,7 +3059,15 @@ export default function Dashboard() {
                   </div>
                   <div className="comp">
                     <span className="cl">Nett Analyzer</span>
-                    <span className="cv">{rp(elektroCapex)}</span>
+                    <span className="cv">{rp(elektroANett)}</span>
+                  </div>
+                  <div className="field">
+                    <label>UPS</label>
+                    <NumInput value={elektroUps} onChange={setElektroUps} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>LIS</label>
+                    <NumInput value={elektroLis} onChange={setElektroLis} prefix="Rp" />
                   </div>
                   <div className="comp strong">
                     <span className="cl">Total CAPEX</span>
@@ -3029,6 +3232,246 @@ export default function Dashboard() {
             </>
           )}
 
+          {/* ══ BLOOD GAS INPUT ══ */}
+          {tab === 'bg' && (
+            <>
+              <div className="sel-row">
+                <span className="sel-label">PRESET TEST/BLN</span>
+                <div className="preset-grid">
+                  {BLOODGAS.PT1000.testPresets.map(v => (
+                    <button key={v} onClick={() => updBg('tests', v)}
+                      className={`preset-btn${bgSet.tests === v ? ' active' : ''}`}>
+                      {fmt(v)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="input-grid">
+                {/* CAPEX */}
+                <div className="inp-card">
+                  <div className="inp-card-title">CAPEX</div>
+                  <div className="field">
+                    <label>Harga Analyzer</label>
+                    <NumInput value={bgSet.price} onChange={v => updBg('price', v)} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>Diskon Analyzer</label>
+                    <NumInput value={bgSet.disc} onChange={v => updBg('disc', v)} suffix="%" />
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Nett Analyzer</span>
+                    <span className="cv">{rp(bgANett)}</span>
+                  </div>
+                  <div className="field">
+                    <label>Pemeliharaan / Bulan</label>
+                    <NumInput value={bgSet.maintenance} onChange={v => updBg('maintenance', v)} prefix="Rp" />
+                  </div>
+                  <div className="comp strong">
+                    <span className="cl">Total CAPEX Alat</span>
+                    <span className="cv">{rp(bgANett)}</span>
+                  </div>
+                </div>
+
+                {/* Parameter KSO */}
+                <div className="inp-card">
+                  <div className="inp-card-title">PARAMETER KSO</div>
+                  <div className="field">
+                    <label>Masa KSO</label>
+                    <NumInput value={bgSet.kso} onChange={v => updBg('kso', v)} suffix="bln" />
+                  </div>
+                  <div className="field">
+                    <label>Test / Bulan</label>
+                    <NumInput value={bgSet.tests} onChange={v => updBg('tests', v)} />
+                  </div>
+                  <div className="field">
+                    <label>Hari Kerja / Bulan</label>
+                    <NumInput value={workDays} onChange={setWorkDays} suffix="hari" />
+                  </div>
+                  <div className="field">
+                    <label>Margin / Markup</label>
+                    <NumInput value={bgSet.markup} onChange={v => updBg('markup', v)} suffix="%" />
+                  </div>
+
+                  <div className="sep" />
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', marginBottom: 6, letterSpacing: '0.5px' }}>SKEMA KERJASAMA</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                    {[{ id: 'kso', label: 'Faskes Beli' }, { id: 'cprr', label: 'CPRR' }].map(m => (
+                      <button key={m.id}
+                        className={`merk-pill${bgMode === m.id ? ' merk-active' : ''}`}
+                        style={bgMode === m.id ? { borderColor: CAT_COLORS.bg, color: CAT_COLORS.bg } : {}}
+                        onClick={() => setBgMode(m.id)}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', marginBottom: 6, letterSpacing: '0.5px' }}>PILIH CARTRIDGE</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
+                    {BLOODGAS.PT1000.cartridges.map(c => (
+                      <button key={c.id}
+                        className={`merk-pill${bgSet.cartKey === c.id ? ' merk-active' : ''}`}
+                        style={bgSet.cartKey === c.id ? { borderColor: CAT_COLORS.bg, color: CAT_COLORS.bg } : {}}
+                        onClick={() => updBg('cartKey', c.id)}>
+                        <span className="merk-dot" style={{ background: CAT_COLORS.bg, opacity: bgSet.cartKey === c.id ? 1 : 0.3 }} />
+                        {c.pack}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="sep" />
+                  <div className="comp">
+                    <span className="cl">Open Stability</span>
+                    <span className="cv" style={{ color: 'var(--amber)' }}>{BLOODGAS.PT1000.stability} hari</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Real Test / 21 Hari</span>
+                    <span className="cv" style={{ color: 'var(--blue)' }}>{bgSet.tests > 0 ? fmt(Math.round(bgReal21d)) : '—'}</span>
+                  </div>
+                  {bgResidue > 0 && bgSet.tests > 0 && (
+                    <div className="comp">
+                      <span className="cl">Residu (terbuang)</span>
+                      <span className="cv" style={{ color: '#B45309' }}>{fmt(Math.round(bgResidue))} test</span>
+                    </div>
+                  )}
+                  <div className="comp">
+                    <span className="cl">Total Test KSO</span>
+                    <span className="cv">{bgTotTest > 0 ? fmt(bgTotTest) : '—'}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">CAPEX / Test</span>
+                    <span className="cv" style={{ color: 'var(--red)' }}>{rp(bgCapPt)}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">HPP Cartridge / Test</span>
+                    <span className="cv">{bgSet.tests > 0 ? rp(bgHppPerTest) : '—'}</span>
+                  </div>
+                  {bgQcOh > 0 && (
+                    <div className="comp">
+                      <span className="cl">QC / Test</span>
+                      <span className="cv" style={{ color: 'var(--amber)' }}>{rp(bgQcOh)}</span>
+                    </div>
+                  )}
+                  <div className="comp strong">
+                    <span className="cl">Harga Jual / Test</span>
+                    <span className="cv">{bgSet.tests > 0 ? rp(bgSell) : '—'}</span>
+                  </div>
+                  <div className="sep" style={{ marginTop: 12 }} />
+                  <button className="goto-btn" onClick={() => setPage('result')}>
+                    Lihat Hasil Perhitungan ▶
+                  </button>
+                </div>
+
+                {/* Harga Cartridge & QC */}
+                <div className="inp-card inp-card-reagent">
+                  <div className="inp-card-title">HARGA CARTRIDGE &amp; QC</div>
+                  <div className="rp-list">
+                    {BLOODGAS.PT1000.cartridges.map(c => {
+                      const rpObj = bgRpCart[c.id] || { price: c.dp, disc: 0 };
+                      const nett  = rpObj.price * (1 - rpObj.disc / 100);
+                      const isActive = bgSet.cartKey === c.id;
+                      return (
+                        <div key={c.id} className="rp-item" style={{ opacity: isActive ? 1 : 0.65, cursor: 'pointer' }}
+                          onClick={() => updBg('cartKey', c.id)}>
+                          <div className="rp-name" title={c.fn}>
+                            {c.fn}
+                            {isActive && <span style={{ marginLeft: 6, fontSize: 10, color: CAT_COLORS.bg, fontWeight: 700 }}>● AKTIF</span>}
+                          </div>
+                          <div className="rp-pack">{c.pack}</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={rpObj.price} onChange={v => updBgCart(c.id, 'price', v)} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={rpObj.disc} onChange={v => updBgCart(c.id, 'disc', v)} suffix="%" />
+                            </div>
+                          </div>
+                          <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="sep" style={{ margin: '10px 0' }} />
+                  <div className="inp-card-title" style={{ marginBottom: 8 }}>QC CONTROL</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                    {['free', 'beli'].map(opt => {
+                      const active = (opt === 'free') === bgCtrl.free;
+                      return (
+                        <button key={opt}
+                          className={`merk-pill${active ? ' merk-active' : ''}`}
+                          style={active ? { borderColor: CAT_COLORS.bg, color: CAT_COLORS.bg } : {}}
+                          onClick={() => setBgCtrl(s => ({ ...s, free: opt === 'free' }))}>
+                          {opt === 'free' ? 'Free (Overhead)' : 'Beli (Faskes)'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="rp-list">
+                    <div className="rp-item">
+                      <div className="rp-name">{BLOODGAS.PT1000.qc.fn}</div>
+                      <div className="rp-pack">{BLOODGAS.PT1000.qc.pack}</div>
+                      <div className="rp-row2">
+                        <div className="field" style={{ margin: 0 }}>
+                          <label>Harga Beli</label>
+                          <NumInput value={bgRpQc.price} onChange={v => updBgQc('price', v)} prefix="Rp" disabled={!bgCtrl.free} />
+                        </div>
+                        <div className="field" style={{ margin: 0 }}>
+                          <label>Diskon</label>
+                          <NumInput value={bgRpQc.disc} onChange={v => updBgQc('disc', v)} suffix="%" disabled={!bgCtrl.free} />
+                        </div>
+                      </div>
+                      <div className="rp-nett">Nett: <span>{rp(bgQcNett)}</span></div>
+                    </div>
+                  </div>
+                  {bgCtrl.free && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Kit QC / siklus 21 hari</span>
+                      <SmallNumInput value={bgCtrl.n_qc} onChange={v => setBgCtrl(s => ({ ...s, n_qc: v }))} tiny />
+                      <span style={{ fontSize: 10, color: 'var(--text-3)' }}>kit</span>
+                    </div>
+                  )}
+
+                  {bgSet.tests > 0 && (
+                    <div style={{ borderTop: '2px solid var(--bdr)', marginTop: 10, paddingTop: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.5px', marginBottom: 6 }}>
+                        RUNNING COST SUMMARY
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                        <span style={{ color: 'var(--text-2)' }}>HPP Cartridge / Test</span>
+                        <span style={{ fontWeight: 600 }}>{rp(bgHppPerTest)}</span>
+                      </div>
+                      {bgMaintPt > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text-2)' }}>Pemeliharaan / Test</span>
+                          <span style={{ fontWeight: 600 }}>{rp(bgMaintPt)}</span>
+                        </div>
+                      )}
+                      {bgQcOh > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text-2)' }}>QC / Test</span>
+                          <span style={{ fontWeight: 600, color: 'var(--amber)' }}>{rp(bgQcOh)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                        <span style={{ color: 'var(--text-2)' }}>+ CAPEX / Test</span>
+                        <span style={{ fontWeight: 600, color: 'var(--red)' }}>{rp(bgCapPt)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, borderTop: '1px solid var(--bdr)', paddingTop: 6 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--blue)' }}>
+                          Cost / Test {bgMode === 'cprr' ? 'KSO CPRR' : 'KSO'}
+                        </span>
+                        <span style={{ fontWeight: 900, color: 'var(--blue)', fontSize: 16 }}>{rp(bgSell)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
         </div>
       </div>
 
@@ -3124,7 +3567,7 @@ export default function Dashboard() {
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
-          ) : (
+          ) : tab === 'elektro' ? (
             <ElektroResult
               elektroRes={elektroRes}
               elektroCapPt={elektroCapPt}
@@ -3138,6 +3581,31 @@ export default function Dashboard() {
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
+          ) : (
+            <BgResult
+              bgMode={bgMode}
+              bgSet={bgSet}
+              bgReal21d={bgReal21d}
+              bgResidue={bgResidue}
+              bgKitCap={bgKitCap}
+              bgEffTests={bgEffTests}
+              bgHppKso={bgHppKso}
+              bgHppCprr={bgHppCprr}
+              bgCartNett={bgCartNett}
+              bgQcOh={bgQcOh}
+              bgQcNett={bgQcNett}
+              bgFixedPt={bgFixedPt}
+              bgCapPt={bgCapPt}
+              bgMaintPt={bgMaintPt}
+              bgBase={bgBase}
+              bgSell={bgSell}
+              bgTotTest={bgTotTest}
+              bgD={bgD}
+              bgCtrl={bgCtrl}
+              totCap={bgANett}
+              workDays={workDays}
+              salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+            />
           )}
         </div>
       </div>
@@ -3147,12 +3615,13 @@ export default function Dashboard() {
       {/* ── Mobile bottom category nav — outside data-page wrapper to escape its stacking context ── */}
       <nav className="mob-nav-bar">
         {[
-          { key: 'hemato',  label: 'Hemato',  color: CAT_COLORS.hemato },
-          { key: 'cc',      label: 'CC',      color: CAT_COLORS.cc },
-          { key: 'xm',      label: 'XM',      color: CAT_COLORS.xm },
-          { key: 'clia',    label: 'CLIA',    color: CAT_COLORS.clia },
-          { key: 'hplc',    label: 'HPLC',    color: CAT_COLORS.hplc },
-          { key: 'elektro', label: 'Elektro', color: CAT_COLORS.elektro },
+          { key: 'hemato',  label: 'Hemato',   color: CAT_COLORS.hemato },
+          { key: 'cc',      label: 'CC',       color: CAT_COLORS.cc },
+          { key: 'xm',      label: 'XM',       color: CAT_COLORS.xm },
+          { key: 'clia',    label: 'CLIA',     color: CAT_COLORS.clia },
+          { key: 'hplc',    label: 'HPLC',     color: CAT_COLORS.hplc },
+          { key: 'elektro', label: 'Elektro',  color: CAT_COLORS.elektro },
+          { key: 'bg',      label: 'Blood Gas', color: CAT_COLORS.bg },
         ].map(({ key, label, color }) => (
           <button
             key={key}
