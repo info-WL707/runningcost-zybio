@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P, HPLC } from '../lib/data';
-import { exportHemato, exportCC, exportCrossmatch, exportCLIA, exportHPLC } from '../lib/exportExcel';
-import { printHemato, printCC, printCrossmatch, printCLIA, printHPLC } from '../lib/printPdf';
+import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P, HPLC, ELEKTRO } from '../lib/data';
+import { exportHemato, exportCC, exportCrossmatch, exportCLIA, exportHPLC, exportElektro } from '../lib/exportExcel';
+import { printHemato, printCC, printCrossmatch, printCLIA, printHPLC, printElektro } from '../lib/printPdf';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,7 @@ const CAT_COLORS = {
   xm:     '#E11D48',
   clia:   '#7C3AED',
   hplc:   '#D97706',
+  elektro: '#0D9488',
 };
 const PAN_CLS_CLIA = {
   'Cardiac/IGD':     'bc',
@@ -466,6 +467,155 @@ function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, h
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ElektroResult ───────────────────────────────────────────────────────────
+
+function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, elektroD, elektroRp, elektroQcOh, elektroSell, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
+  const totR = elektroRes ? elektroRes.cpt : 0;
+  const base = elektroCapPt + totR + (elektroQcOh || 0);
+  const markup_amt = elektroSell - base;
+
+  const modeInfo  = ELEKTRO.DNX6.modes[elektroSet.mode];
+  const rpObj     = elektroRp[elektroSet.mode];
+  const packLabel = elektroSet.mode === 'cartridge' ? '650 mL Cal A / cartridge' : '3×450 mL Cal A + 1 Cal B / set';
+  const testsPerPack = elektroRes ? elektroRes.totalTests : 0;
+  const excelKit  = testsPerPack > 0 && elektroSell > 0 ? elektroSell * testsPerPack : 0;
+
+  const reagentRows = [{
+    fn:          modeInfo.label + ' Reagent',
+    pack:        packLabel,
+    contribTest: totR,
+    excelKit,
+  }];
+
+  function handleExportElektro() {
+    exportElektro({
+      analyzerName: ELEKTRO.DNX6.label, modeName: modeInfo.label,
+      totCap, kso: elektroSet.kso, testsPerMonth: elektroSet.tests,
+      workDays: workDays || 25, markup: elektroSet.markup,
+      qcFree: elektroQcOh > 0, capPt: elektroCapPt,
+      totR, ctrlOverhead: elektroQcOh || 0,
+      sell: elektroSell, totTest: elektroTotTest,
+      reagentRows,
+      runDays: elektroRes ? elektroRes.runDays : 0,
+      testsPerPack,
+      salesName: salesName || '', faskesName: faskesName || '',
+      kotaKab: kotaKab || '', kompetitor: kompetitor || '',
+    });
+  }
+  function handlePrintElektro() {
+    printElektro({
+      analyzerName: ELEKTRO.DNX6.label, modeName: modeInfo.label,
+      totCap, kso: elektroSet.kso, testsPerMonth: elektroSet.tests,
+      workDays: workDays || 25, markup: elektroSet.markup,
+      qcFree: elektroQcOh > 0, capPt: elektroCapPt,
+      totR, ctrlOverhead: elektroQcOh || 0,
+      sell: elektroSell, totTest: elektroTotTest,
+      reagentRows,
+      runDays: elektroRes ? elektroRes.runDays : 0,
+      testsPerPack,
+      salesName: salesName || '', faskesName: faskesName || '',
+      kotaKab: kotaKab || '', kompetitor: kompetitor || '',
+    });
+  }
+
+  return (
+    <div className="page2-wrap">
+      <div className="cprr-hero">
+        <div className="cprr-left">
+          <div className="cprr-label">COST / TEST — KSO CPRR</div>
+          <div className="cprr-sub">
+            {ELEKTRO.DNX6.brand} · {modeInfo.label}
+            &nbsp;·&nbsp;{elektroTotTest > 0 ? `${fmt(elektroTotTest)} test · ${elektroSet.kso} bulan` : '—'}
+            {elektroD > 0 ? ` · ${fmt(elektroD)} test/hari` : ''}
+          </div>
+          <div className="cprr-val">{elektroRes ? rp(elektroSell) : '—'}</div>
+        </div>
+        <div className="cprr-pills">
+          <span className="pill pl-cap">CAPEX/Test: {rp(elektroCapPt)}</span>
+          <span className="pill pl-rgn">Reagen/Test: {elektroRes ? rp(totR) : '—'}</span>
+          {elektroQcOh > 0 && <span className="pill pl-qc">QC/Test: {rp(elektroQcOh)}</span>}
+          <span className="pill pl-base">Base Cost: {rp(base)}</span>
+          <span className="pill pl-mkp">Markup {elektroSet.markup}%: {elektroRes ? rp(markup_amt) : '—'}</span>
+        </div>
+      </div>
+
+      <div className="tbl-section">
+        <div className="tbl-hbar">
+          <span className="tbl-title">Rincian Reagen — {ELEKTRO.DNX6.label} ({modeInfo.label})</span>
+          <span className="tbl-note">
+            {elektroD > 0 ? 'Sell/Kit = target harga jual per pack untuk mencapai CPRR' : 'Lengkapi input di halaman sebelumnya'}
+          </span>
+          {elektroRes && <button className="export-btn" onClick={handleExportElektro}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak Excel</button>}
+          {elektroRes && <button className="print-btn" onClick={handlePrintElektro}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak PDF</button>}
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama Barang</th>
+                <th className="mob-hide">Kemasan</th>
+                <th className="r">Kontrib/Test</th>
+                <th className="r th-sell">Sell/Kit (KSO)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style={{ fontWeight: 600 }}>{modeInfo.label} Reagent</td>
+                <td className="mob-hide" style={{ color: 'var(--text-3)', fontSize: '11px' }}>{packLabel}</td>
+                <td className="cpt">{elektroRes ? fmt(totR) : '—'}</td>
+                <td className="r td-sell">{elektroRes && excelKit > 0 ? rp(excelKit) : '—'}</td>
+              </tr>
+              {elektroQcOh > 0 && (
+                <tr className="tr-ctrl">
+                  <td colSpan={2}>QC Solution (3 level) / Test</td>
+                  <td className="cpt">{fmt(elektroQcOh)}</td>
+                  <td style={{ background: '#FFFBEB' }}>—</td>
+                </tr>
+              )}
+              <tr className="tr-sub">
+                <td colSpan={2}>Total Biaya Reagen / Test</td>
+                <td className="cpt">{elektroRes ? fmt(totR + elektroQcOh) : '—'}</td>
+                <td style={{ background: '#F1F5F9' }}></td>
+              </tr>
+              <tr className="tr-capex">
+                <td colSpan={2} style={{ color: 'var(--red)' }}>
+                  + CAPEX / Test&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
+                    (Alat ÷ {fmt(elektroTotTest)} test KSO)
+                  </span>
+                </td>
+                <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(elektroCapPt)}</td>
+                <td style={{ background: '#FFF5F5' }}></td>
+              </tr>
+              <tr className="tr-base">
+                <td colSpan={2}>Base Cost / Test (sebelum markup)</td>
+                <td className="cpt">{elektroRes ? rp(base) : '—'}</td>
+                <td style={{ background: '#F8FAFC' }}></td>
+              </tr>
+              <tr className="tr-sell tr-sell-big">
+                <td colSpan={2}>
+                  Cost / Test KSO CPRR&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11 }}>margin {elektroSet.markup}%</span>
+                </td>
+                <td className="cpt" style={{ fontSize: 16, fontWeight: 900, color: 'var(--blue)' }}>
+                  {elektroRes ? rp(elektroSell) : '—'}
+                </td>
+                <td style={{ background: 'var(--blue2)' }}></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {elektroRes && (
+          <div style={{ padding: '8px 18px', fontSize: 11, color: 'var(--text-3)', borderTop: '1px solid var(--bdr)' }}>
+            {modeInfo.label}: {fmt(elektroRes.runDays)} hari/pack · {fmt(elektroRes.totalTests)} test/pack
+            &nbsp;·&nbsp;Fixed: 21 mL/hari · Per-test: 0.8 mL Cal A
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1661,6 +1811,12 @@ function initXmRp() {
 function initHplcRp() {
   return Object.fromEntries(HPLC.AH600PRO.reagents.map(r => [r.id, { price: r.dp, disc: 0 }]));
 }
+function initElektroRp() {
+  return {
+    cartridge: { price: ELEKTRO.DNX6.modes.cartridge.price, disc: 0 },
+    bottle:    { price: ELEKTRO.DNX6.modes.bottle.price,    disc: 0 },
+  };
+}
 
 function initCliaSet() {
   return {
@@ -1759,6 +1915,9 @@ export default function Dashboard() {
   const [hplcSet,    setHplcSet]    = useState({ price: HPLC.AH600PRO.dP, disc: 0, kso: HPLC.AH600PRO.dK, markup: HPLC.AH600PRO.dM, tests: HPLC.AH600PRO.dT });
   const [hplcRp,     setHplcRp]     = useState(initHplcRp);
   const [hplcCtrl,   setHplcCtrl]   = useState({ free: true, cal: { price: HPLC.AH600PRO.calPl, disc: 0 }, ctrl: { price: HPLC.AH600PRO.ctrlPl, disc: 0 } });
+  const [elektroSet, setElektroSet] = useState({ price: ELEKTRO.DNX6.dP, disc: 0, kso: ELEKTRO.DNX6.dK, markup: ELEKTRO.DNX6.dM, tests: ELEKTRO.DNX6.dT, mode: 'cartridge' });
+  const [elektroRp,  setElektroRp]  = useState(initElektroRp);
+  const [elektroCtrl,setElektroCtrl]= useState({ free: true, qc1: { price: 948000, disc: 0 }, qc2: { price: 948000, disc: 0 }, qc3: { price: 948000, disc: 0 } });
 
   // ── CAPEX ──
   const curSet  = (tab === 'hemato' ? hSet[hType] : cSet[cType]) || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 };
@@ -1832,6 +1991,24 @@ export default function Dashboard() {
   const hplcBase     = hplcCapPt + hplcTotR + hplcCtrlOh;
   const hplcSell     = sellOf(hplcBase, hplcSet.markup);
 
+  // ── Elektrolit computed ──
+  const elektroCapex    = elektroSet.price * (1 - elektroSet.disc / 100);
+  const elektroTotTest  = elektroSet.kso * elektroSet.tests;
+  const elektroCapPt    = elektroTotTest > 0 ? elektroCapex / elektroTotTest : 0;
+  const elektroD        = workDays > 0 ? elektroSet.tests / workDays : 0;
+  const elektroRpNow    = elektroRp[elektroSet.mode];
+  const elektroRpNett   = elektroRpNow.price * (1 - elektroRpNow.disc / 100);
+  const elektroRes      = elektroD > 0 ? ELEKTRO.DNX6.calc(elektroSet.tests, workDays, elektroSet.mode, elektroRpNett) : null;
+  const elektroTotR     = elektroRes ? elektroRes.cpt : 0;
+  const elektroQc1Nett  = elektroCtrl.qc1.price * (1 - elektroCtrl.qc1.disc / 100);
+  const elektroQc2Nett  = elektroCtrl.qc2.price * (1 - elektroCtrl.qc2.disc / 100);
+  const elektroQc3Nett  = elektroCtrl.qc3.price * (1 - elektroCtrl.qc3.disc / 100);
+  const elektroQcOh     = (elektroCtrl.free && elektroSet.tests > 0)
+    ? (elektroQc1Nett + elektroQc2Nett + elektroQc3Nett) / elektroSet.tests
+    : 0;
+  const elektroBase     = elektroCapPt + elektroTotR + elektroQcOh;
+  const elektroSell     = sellOf(elektroBase, elektroSet.markup);
+
   // ── Reagent nett maps (hemato) — nett = pricelist × (1 − disc) ──
   const rpNettMap = {};
   Object.entries(hRp[hType]).forEach(([id, obj]) => {
@@ -1866,6 +2043,11 @@ export default function Dashboard() {
   const updHplcCtrl = (fld, v) => setHplcCtrl(p => ({ ...p, [fld]: v }));
   const updHplcCtrlCal  = (fld, v) => setHplcCtrl(p => ({ ...p, cal:  { ...p.cal,  [fld]: v } }));
   const updHplcCtrlCtrl = (fld, v) => setHplcCtrl(p => ({ ...p, ctrl: { ...p.ctrl, [fld]: v } }));
+
+  const updElektro    = (f, v) => setElektroSet(p => ({ ...p, [f]: v }));
+  const updElektroRp  = (mode, fld, v) => setElektroRp(p => ({ ...p, [mode]: { ...p[mode], [fld]: v } }));
+  const updElektroCtrl = (fld, v) => setElektroCtrl(p => ({ ...p, [fld]: v }));
+  const updElektroQc  = (qid, fld, v) => setElektroCtrl(p => ({ ...p, [qid]: { ...p[qid], [fld]: v } }));
 
   const updCCParam = (id, field, value) =>
     setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -1936,7 +2118,7 @@ export default function Dashboard() {
           <img src="/logo.png" alt="Wahana Lifeline" className="hdr-logo" />
         </div>
         <div className="hdr-r">
-          Dashboard KSO Simulator<br />Hematologi · Kimia Klinik · Crossmatch · CLIA · HPLC
+          Dashboard KSO Simulator<br />Hematologi · Kimia Klinik · Crossmatch · CLIA · HPLC · Elektrolit
         </div>
       </header>
 
@@ -1998,6 +2180,8 @@ export default function Dashboard() {
               active={tab === 'clia'} onClick={() => setTab('clia')} />
             <MerkPill label="HPLC" color={CAT_COLORS.hplc}
               active={tab === 'hplc'} onClick={() => setTab('hplc')} />
+            <MerkPill label="Elektrolit" color={CAT_COLORS.elektro}
+              active={tab === 'elektro'} onClick={() => setTab('elektro')} />
           </div>
 
           {/* ══ HEMATO INPUT ══ */}
@@ -2640,6 +2824,211 @@ export default function Dashboard() {
             </>
           )}
 
+          {/* ══ ELEKTROLIT INPUT ══ */}
+          {tab === 'elektro' && (
+            <>
+              <div className="sel-row">
+                <span className="sel-label">TIPE REAGEN</span>
+                {['cartridge', 'bottle'].map(m => (
+                  <MerkPill key={m}
+                    label={ELEKTRO.DNX6.modes[m].label}
+                    color={CAT_COLORS.elektro}
+                    active={elektroSet.mode === m}
+                    onClick={() => updElektro('mode', m)} />
+                ))}
+              </div>
+
+              <div className="sel-row">
+                <span className="sel-label">PRESET TEST/BLN</span>
+                <div className="preset-grid">
+                  {ELEKTRO.DNX6.testPresets.map(v => (
+                    <button key={v} onClick={() => updElektro('tests', v)}
+                      className={`preset-btn${elektroSet.tests === v ? ' active' : ''}`}>
+                      {fmt(v)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="input-grid">
+                {/* CAPEX */}
+                <div className="inp-card">
+                  <div className="inp-card-title">CAPEX</div>
+                  <div className="field">
+                    <label>Harga Analyzer</label>
+                    <NumInput value={elektroSet.price} onChange={v => updElektro('price', v)} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>Diskon Analyzer</label>
+                    <NumInput value={elektroSet.disc} onChange={v => updElektro('disc', v)} suffix="%" />
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Nett Analyzer</span>
+                    <span className="cv">{rp(elektroCapex)}</span>
+                  </div>
+                  <div className="comp strong">
+                    <span className="cl">Total CAPEX</span>
+                    <span className="cv">{rp(elektroCapex)}</span>
+                  </div>
+                </div>
+
+                {/* Parameter KSO */}
+                <div className="inp-card">
+                  <div className="inp-card-title">PARAMETER KSO</div>
+                  <div className="field">
+                    <label>Masa KSO</label>
+                    <NumInput value={elektroSet.kso} onChange={v => updElektro('kso', v)} suffix="bln" />
+                  </div>
+                  <div className="field">
+                    <label>Test / Bulan</label>
+                    <NumInput value={elektroSet.tests} onChange={v => updElektro('tests', v)} />
+                  </div>
+                  <div className="field">
+                    <label>Hari Kerja / Bulan</label>
+                    <NumInput value={workDays} onChange={setWorkDays} suffix="hari" />
+                  </div>
+                  <div className="field">
+                    <label>Margin / Markup</label>
+                    <NumInput value={elektroSet.markup} onChange={v => updElektro('markup', v)} suffix="%" />
+                  </div>
+                  <div className="sep" />
+                  <div className="comp">
+                    <span className="cl">Test / Hari</span>
+                    <span className="cv">{elektroD > 0 ? fmt(elektroD) : '—'}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Total Test KSO</span>
+                    <span className="cv">{elektroTotTest > 0 ? fmt(elektroTotTest) : '—'}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">CAPEX / Test</span>
+                    <span className="cv" style={{ color: 'var(--red)' }}>{rp(elektroCapPt)}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Reagen / Test</span>
+                    <span className="cv">{rp(elektroTotR)}</span>
+                  </div>
+                  {elektroQcOh > 0 && (
+                    <div className="comp">
+                      <span className="cl">QC / Test</span>
+                      <span className="cv" style={{ color: 'var(--amber)' }}>{rp(elektroQcOh)}</span>
+                    </div>
+                  )}
+                  <div className="comp strong">
+                    <span className="cl">Harga Jual / Test</span>
+                    <span className="cv">{rp(elektroSell)}</span>
+                  </div>
+                  <div className="sep" style={{ marginTop: 12 }} />
+                  <button className="goto-btn" onClick={() => setPage('result')}>
+                    Lihat Hasil Perhitungan ▶
+                  </button>
+                </div>
+
+                {/* Harga Reagen */}
+                <div className="inp-card inp-card-reagent">
+                  <div className="inp-card-title">HARGA REAGEN (PRICELIST)</div>
+                  <div className="rp-list">
+                    {(() => {
+                      const m = elektroSet.mode;
+                      const modeInfo = ELEKTRO.DNX6.modes[m];
+                      const obj = elektroRp[m];
+                      const nett = obj.price * (1 - obj.disc / 100);
+                      const packLabel = m === 'cartridge' ? '650 mL Cal A / cartridge' : '3×450 mL Cal A + 1 Cal B / set';
+                      return (
+                        <div className="rp-item">
+                          <div className="rp-name">{modeInfo.label} Reagent</div>
+                          <div className="rp-pack">{packLabel}</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Pricelist / {m === 'cartridge' ? 'Cartridge' : 'Set'}</label>
+                              <NumInput value={obj.price} onChange={v => updElektroRp(m, 'price', v)} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={obj.disc} onChange={v => updElektroRp(m, 'disc', v)} suffix="%" />
+                            </div>
+                          </div>
+                          <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
+                          {elektroRes && (
+                            <div className="rp-nett" style={{ color: 'var(--text-3)' }}>
+                              {fmt(elektroRes.runDays)} hari/pack · {fmt(elektroRes.totalTests)} test/pack
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* QC Section */}
+                  <div className="sep" style={{ margin: '10px 0' }} />
+                  <div className="inp-card-title" style={{ marginBottom: 8 }}>QC SOLUTION</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                    {['free', 'beli'].map(opt => {
+                      const active = (opt === 'free') === elektroCtrl.free;
+                      return (
+                        <button key={opt}
+                          className={`merk-pill${active ? ' merk-active' : ''}`}
+                          style={active ? { borderColor: CAT_COLORS.elektro, color: CAT_COLORS.elektro } : {}}
+                          onClick={() => updElektroCtrl('free', opt === 'free')}>
+                          {opt === 'free' ? 'Free (Overhead)' : 'Beli (Pricelist)'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="rp-list">
+                    {ELEKTRO.DNX6.qcItems.map(q => {
+                      const obj = elektroCtrl[q.id];
+                      const nett = obj.price * (1 - obj.disc / 100);
+                      return (
+                        <div key={q.id} className="rp-item">
+                          <div className="rp-name">{q.fn}</div>
+                          <div className="rp-pack">{q.pack}</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Beli</label>
+                              <NumInput value={obj.price} onChange={v => updElektroQc(q.id, 'price', v)} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={obj.disc} onChange={v => updElektroQc(q.id, 'disc', v)} suffix="%" />
+                            </div>
+                          </div>
+                          <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {elektroRes && elektroD > 0 && (
+                    <div style={{ borderTop: '2px solid var(--bdr)', marginTop: 10, paddingTop: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.5px', marginBottom: 6 }}>
+                        RUNNING COST SUMMARY
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                        <span style={{ color: 'var(--text-2)' }}>Total Reagen / Test</span>
+                        <span style={{ fontWeight: 600 }}>{rp(elektroTotR)}</span>
+                      </div>
+                      {elektroQcOh > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text-2)' }}>QC / Test</span>
+                          <span style={{ fontWeight: 600, color: 'var(--amber)' }}>{rp(elektroQcOh)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                        <span style={{ color: 'var(--text-2)' }}>+ CAPEX / Test</span>
+                        <span style={{ fontWeight: 600, color: 'var(--red)' }}>{rp(elektroCapPt)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, borderTop: '1px solid var(--bdr)', paddingTop: 6 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--blue)' }}>Cost / Test KSO CPRR</span>
+                        <span style={{ fontWeight: 900, color: 'var(--blue)', fontSize: 16 }}>{rp(elektroSell)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
         </div>
       </div>
 
@@ -2721,7 +3110,7 @@ export default function Dashboard() {
               qcFree={cliaIsFree}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
-          ) : (
+          ) : tab === 'hplc' ? (
             <HPLCResult
               hplcRes={hplcRes}
               hplcCapPt={hplcCapPt}
@@ -2735,6 +3124,20 @@ export default function Dashboard() {
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
+          ) : (
+            <ElektroResult
+              elektroRes={elektroRes}
+              elektroCapPt={elektroCapPt}
+              elektroTotTest={elektroTotTest}
+              elektroSet={elektroSet}
+              elektroD={elektroD}
+              elektroRp={elektroRp}
+              elektroQcOh={elektroQcOh}
+              elektroSell={elektroSell}
+              totCap={elektroCapex}
+              workDays={workDays}
+              salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+            />
           )}
         </div>
       </div>
@@ -2744,11 +3147,12 @@ export default function Dashboard() {
       {/* ── Mobile bottom category nav — outside data-page wrapper to escape its stacking context ── */}
       <nav className="mob-nav-bar">
         {[
-          { key: 'hemato', label: 'Hemato', color: CAT_COLORS.hemato },
-          { key: 'cc',     label: 'CC',     color: CAT_COLORS.cc },
-          { key: 'xm',     label: 'XM',     color: CAT_COLORS.xm },
-          { key: 'clia',   label: 'CLIA',   color: CAT_COLORS.clia },
-          { key: 'hplc',   label: 'HPLC',   color: CAT_COLORS.hplc },
+          { key: 'hemato',  label: 'Hemato',  color: CAT_COLORS.hemato },
+          { key: 'cc',      label: 'CC',      color: CAT_COLORS.cc },
+          { key: 'xm',      label: 'XM',      color: CAT_COLORS.xm },
+          { key: 'clia',    label: 'CLIA',    color: CAT_COLORS.clia },
+          { key: 'hplc',    label: 'HPLC',    color: CAT_COLORS.hplc },
+          { key: 'elektro', label: 'Elektro', color: CAT_COLORS.elektro },
         ].map(({ key, label, color }) => (
           <button
             key={key}
