@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P } from '../lib/data';
-import { exportHemato, exportCC, exportCrossmatch, exportCLIA } from '../lib/exportExcel';
-import { printHemato, printCC, printCrossmatch, printCLIA } from '../lib/printPdf';
+import { HEMATO, CC, CC_P, CC_PANELS, CROSSMATCH, CLIA, CLIA_PANELS, SNIBE_P, WONDFO_P, HPLC } from '../lib/data';
+import { exportHemato, exportCC, exportCrossmatch, exportCLIA, exportHPLC } from '../lib/exportExcel';
+import { printHemato, printCC, printCrossmatch, printCLIA, printHPLC } from '../lib/printPdf';
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -48,6 +48,7 @@ const CAT_COLORS = {
   cc:     '#10B981',
   xm:     '#E11D48',
   clia:   '#7C3AED',
+  hplc:   '#D97706',
 };
 const PAN_CLS_CLIA = {
   'Cardiac/IGD':     'bc',
@@ -305,6 +306,160 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
                 </td>
                 <td className="cpt" style={{ fontSize: 16, fontWeight: 900, color: 'var(--blue)' }}>
                   {hRes ? rp(sell) : '—'}
+                </td>
+                <td style={{ background: 'var(--blue2)' }}></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── HPLCResult ───────────────────────────────────────────────────────────────
+
+function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, hplcCtrlOh, hplcSell, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
+  const totR  = hplcRes ? hplcRes.total : 0;
+  const base  = hplcCapPt + totR + (hplcCtrlOh || 0);
+  const markup_amt = hplcSell - base;
+
+  const rows0 = HPLC.AH600PRO.reagents.map(r => {
+    const obj         = hplcRp[r.id] || { price: r.dp, disc: 0 };
+    const nettKit     = obj.price * (1 - obj.disc / 100);
+    const sellKit     = hplcSet.markup < 100 ? nettKit / (1 - hplcSet.markup / 100) : 0;
+    const pr          = hplcRes ? hplcRes.pr[r.id] : null;
+    const contribTest = pr ? (pr.c + pr.f) : 0;
+    return { ...r, obj, nettKit, sellKit, contribTest };
+  });
+
+  const rows = rows0.map(r => ({
+    ...r,
+    excelKit: totR > 0 && hplcSell > 0 ? r.nettKit * hplcSell / totR : 0,
+  }));
+
+  function handleExportHPLC() {
+    exportHPLC({
+      analyzerName: HPLC.AH600PRO.label,
+      totCap,
+      kso: hplcSet.kso,
+      testsPerMonth: hplcSet.tests,
+      workDays: workDays || 25,
+      markup: hplcSet.markup,
+      qcFree: hplcCtrlOh === 0,
+      capPt: hplcCapPt,
+      totR,
+      ctrlOverhead: hplcCtrlOh || 0,
+      sell: hplcSell,
+      totTest: hplcTotTest,
+      reagentRows: rows,
+      salesName: salesName || '', faskesName: faskesName || '',
+      kotaKab: kotaKab || '', kompetitor: kompetitor || '',
+    });
+  }
+  function handlePrintHPLC() {
+    printHPLC({
+      analyzerName: HPLC.AH600PRO.label,
+      totCap,
+      kso: hplcSet.kso,
+      testsPerMonth: hplcSet.tests,
+      workDays: workDays || 25,
+      markup: hplcSet.markup,
+      qcFree: hplcCtrlOh === 0,
+      capPt: hplcCapPt,
+      totR,
+      ctrlOverhead: hplcCtrlOh || 0,
+      sell: hplcSell,
+      totTest: hplcTotTest,
+      reagentRows: rows,
+      salesName: salesName || '', faskesName: faskesName || '',
+      kotaKab: kotaKab || '', kompetitor: kompetitor || '',
+    });
+  }
+
+  return (
+    <div className="page2-wrap">
+      <div className="cprr-hero">
+        <div className="cprr-left">
+          <div className="cprr-label">COST / TEST — KSO CPRR</div>
+          <div className="cprr-sub">
+            {HPLC.AH600PRO.brand}
+            &nbsp;·&nbsp;{hplcTotTest > 0 ? `${fmt(hplcTotTest)} test · ${hplcSet.kso} bulan` : '—'}
+            {hplcD > 0 ? ` · ${fmt(hplcD)} test/hari` : ''}
+          </div>
+          <div className="cprr-val">{hplcRes ? rp(hplcSell) : '—'}</div>
+        </div>
+        <div className="cprr-pills">
+          <span className="pill pl-cap">CAPEX/Test: {rp(hplcCapPt)}</span>
+          <span className="pill pl-rgn">Reagen/Test: {hplcRes ? rp(totR) : '—'}</span>
+          {hplcCtrlOh > 0 && <span className="pill pl-qc">QC/Test: {rp(hplcCtrlOh)}</span>}
+          <span className="pill pl-base">Base Cost: {rp(base)}</span>
+          <span className="pill pl-mkp">Markup {hplcSet.markup}%: {hplcRes ? rp(markup_amt) : '—'}</span>
+        </div>
+      </div>
+
+      <div className="tbl-section">
+        <div className="tbl-hbar">
+          <span className="tbl-title">Rincian Reagen — {HPLC.AH600PRO.label} (HbA1c HPLC)</span>
+          <span className="tbl-note">
+            {hplcD > 0 ? 'Harga KSO di Excel = harga yang dimasukkan ke file running cost Excel agar hasilnya sama dengan KSO CPRR' : 'Lengkapi input di halaman sebelumnya'}
+          </span>
+          {hplcRes && <button className="export-btn" onClick={handleExportHPLC}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak Excel</button>}
+          {hplcRes && <button className="print-btn" onClick={handlePrintHPLC}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:4,verticalAlign:'middle'}}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>Cetak PDF</button>}
+        </div>
+        <div className="tbl-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama Barang</th>
+                <th className="mob-hide">Kemasan</th>
+                <th className="r">Kontrib/Test</th>
+                <th className="r th-sell">Sell/Kit (KSO)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id}>
+                  <td style={{ fontWeight: 600 }}>{r.fn}</td>
+                  <td className="mob-hide" style={{ color: 'var(--text-3)', fontSize: '11px' }}>{r.pack}</td>
+                  <td className="cpt">{hplcRes ? fmt(r.contribTest) : '—'}</td>
+                  <td className="r td-sell">{hplcRes && r.excelKit > 0 ? rp(r.excelKit) : '—'}</td>
+                </tr>
+              ))}
+              {hplcCtrlOh > 0 && (
+                <tr className="tr-ctrl">
+                  <td colSpan={2}>QC Control + Kalibrasi / Test</td>
+                  <td className="cpt">{fmt(hplcCtrlOh)}</td>
+                  <td style={{ background: '#FFFBEB' }}>—</td>
+                </tr>
+              )}
+              <tr className="tr-sub">
+                <td colSpan={2}>Total Biaya Reagen / Test</td>
+                <td className="cpt">{hplcRes ? fmt(totR) : '—'}</td>
+                <td style={{ background: '#F1F5F9' }}></td>
+              </tr>
+              <tr className="tr-capex">
+                <td colSpan={2} style={{ color: 'var(--red)' }}>
+                  + CAPEX / Test&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
+                    (Alat ÷ {fmt(hplcTotTest)} test KSO)
+                  </span>
+                </td>
+                <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(hplcCapPt)}</td>
+                <td style={{ background: '#FFF5F5' }}></td>
+              </tr>
+              <tr className="tr-base">
+                <td colSpan={2}>Base Cost / Test (sebelum markup)</td>
+                <td className="cpt">{hplcRes ? rp(base) : '—'}</td>
+                <td style={{ background: '#F8FAFC' }}></td>
+              </tr>
+              <tr className="tr-sell tr-sell-big">
+                <td colSpan={2}>
+                  Cost / Test KSO CPRR&nbsp;
+                  <span style={{ fontWeight: 400, fontSize: 11 }}>margin {hplcSet.markup}%</span>
+                </td>
+                <td className="cpt" style={{ fontSize: 16, fontWeight: 900, color: 'var(--blue)' }}>
+                  {hplcRes ? rp(hplcSell) : '—'}
                 </td>
                 <td style={{ background: 'var(--blue2)' }}></td>
               </tr>
@@ -1503,6 +1658,9 @@ function initXmRp() {
     REDCEL: { ahg:  { price: 3885000, disc: 0 }, liss: { price: 2500000, disc: 0 } },
   };
 }
+function initHplcRp() {
+  return Object.fromEntries(HPLC.AH600PRO.reagents.map(r => [r.id, { price: r.dp, disc: 0 }]));
+}
 
 function initCliaSet() {
   return {
@@ -1598,6 +1756,9 @@ export default function Dashboard() {
   const [faskesName, setFaskesName] = useState('');
   const [kotaKab,    setKotaKab]    = useState('');
   const [kompetitor, setKompetitor] = useState('');
+  const [hplcSet,    setHplcSet]    = useState({ price: HPLC.AH600PRO.dP, disc: 0, kso: HPLC.AH600PRO.dK, markup: HPLC.AH600PRO.dM, tests: HPLC.AH600PRO.dT });
+  const [hplcRp,     setHplcRp]     = useState(initHplcRp);
+  const [hplcCtrl,   setHplcCtrl]   = useState({ free: true, cal: { price: HPLC.AH600PRO.calPl, disc: 0 }, ctrl: { price: HPLC.AH600PRO.ctrlPl, disc: 0 } });
 
   // ── CAPEX ──
   const curSet  = (tab === 'hemato' ? hSet[hType] : cSet[cType]) || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 };
@@ -1655,6 +1816,22 @@ export default function Dashboard() {
   const cliaConsInf = cliaConsBase + iwashCpt;
   const cliaParamsNow = cliaParams[cliaType];
 
+  // ── HPLC computed ──
+  const hplcCapex    = hplcSet.price * (1 - hplcSet.disc / 100);
+  const hplcTotTest  = hplcSet.kso * hplcSet.tests;
+  const hplcCapPt    = hplcTotTest > 0 ? hplcCapex / hplcTotTest : 0;
+  const hplcD        = workDays > 0 ? hplcSet.tests / workDays : 0;
+  const hplcRpNett   = Object.fromEntries(Object.entries(hplcRp).map(([id, o]) => [id, o.price * (1 - o.disc / 100)]));
+  const hplcRes      = hplcD > 0 ? HPLC.AH600PRO.calc(hplcSet.tests, workDays, hplcRpNett) : null;
+  const hplcTotR     = hplcRes ? hplcRes.total : 0;
+  const hplcCalNett  = hplcCtrl.cal.price  * (1 - hplcCtrl.cal.disc  / 100);
+  const hplcCtrlNett = hplcCtrl.ctrl.price * (1 - hplcCtrl.ctrl.disc / 100);
+  const hplcCtrlOh   = (!hplcCtrl.free && hplcSet.tests > 0 && workDays > 0)
+    ? (hplcCalNett * (workDays / 5) * 0.5 + hplcCtrlNett * workDays * 0.0392) / hplcSet.tests
+    : 0;
+  const hplcBase     = hplcCapPt + hplcTotR + hplcCtrlOh;
+  const hplcSell     = sellOf(hplcBase, hplcSet.markup);
+
   // ── Reagent nett maps (hemato) — nett = pricelist × (1 − disc) ──
   const rpNettMap = {};
   Object.entries(hRp[hType]).forEach(([id, obj]) => {
@@ -1683,6 +1860,12 @@ export default function Dashboard() {
   const updHCtrl     = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], [f]: v } }));
   const updHCtrlCtrl = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], ctrl: { ...p[hType].ctrl, [f]: v } } }));
   const updHCtrlCal  = (f, v) => setHCtrl(p => ({ ...p, [hType]: { ...p[hType], cal:  { ...p[hType].cal,  [f]: v } } }));
+
+  const updHplc     = (f, v) => setHplcSet(p => ({ ...p, [f]: v }));
+  const updHplcRp   = (id, fld, v) => setHplcRp(p => ({ ...p, [id]: { ...p[id], [fld]: v } }));
+  const updHplcCtrl = (fld, v) => setHplcCtrl(p => ({ ...p, [fld]: v }));
+  const updHplcCtrlCal  = (fld, v) => setHplcCtrl(p => ({ ...p, cal:  { ...p.cal,  [fld]: v } }));
+  const updHplcCtrlCtrl = (fld, v) => setHplcCtrl(p => ({ ...p, ctrl: { ...p.ctrl, [fld]: v } }));
 
   const updCCParam = (id, field, value) =>
     setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
@@ -1753,7 +1936,7 @@ export default function Dashboard() {
           <img src="/logo.png" alt="Wahana Lifeline" className="hdr-logo" />
         </div>
         <div className="hdr-r">
-          Dashboard KSO Simulator<br />Hematologi · Kimia Klinik · Crossmatch · CLIA
+          Dashboard KSO Simulator<br />Hematologi · Kimia Klinik · Crossmatch · CLIA · HPLC
         </div>
       </header>
 
@@ -1813,6 +1996,8 @@ export default function Dashboard() {
               active={tab === 'xm'} onClick={() => setTab('xm')} />
             <MerkPill label="CLIA" color={CAT_COLORS.clia}
               active={tab === 'clia'} onClick={() => setTab('clia')} />
+            <MerkPill label="HPLC" color={CAT_COLORS.hplc}
+              active={tab === 'hplc'} onClick={() => setTab('hplc')} />
           </div>
 
           {/* ══ HEMATO INPUT ══ */}
@@ -2264,6 +2449,197 @@ export default function Dashboard() {
             </>
           )}
 
+          {/* ══ HPLC INPUT ══ */}
+          {tab === 'hplc' && (
+            <>
+              <div className="sel-row">
+                <span className="sel-label">PRESET TEST/BLN</span>
+                <div className="preset-grid">
+                  {HPLC.AH600PRO.testPresets.map(v => (
+                    <button key={v} onClick={() => updHplc('tests', v)}
+                      className={`preset-btn${hplcSet.tests === v ? ' active' : ''}`}>
+                      {fmt(v)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="input-grid">
+                {/* CAPEX */}
+                <div className="inp-card">
+                  <div className="inp-card-title">CAPEX</div>
+                  <div className="field">
+                    <label>Harga Analyzer</label>
+                    <NumInput value={hplcSet.price} onChange={v => updHplc('price', v)} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>Diskon Analyzer</label>
+                    <NumInput value={hplcSet.disc} onChange={v => updHplc('disc', v)} suffix="%" />
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Nett Analyzer</span>
+                    <span className="cv">{rp(hplcCapex)}</span>
+                  </div>
+                  <div className="comp strong">
+                    <span className="cl">Total CAPEX</span>
+                    <span className="cv">{rp(hplcCapex)}</span>
+                  </div>
+                </div>
+
+                {/* Parameter KSO */}
+                <div className="inp-card">
+                  <div className="inp-card-title">PARAMETER KSO</div>
+                  <div className="field">
+                    <label>Masa KSO</label>
+                    <NumInput value={hplcSet.kso} onChange={v => updHplc('kso', v)} suffix="bln" />
+                  </div>
+                  <div className="field">
+                    <label>Test / Bulan</label>
+                    <NumInput value={hplcSet.tests} onChange={v => updHplc('tests', v)} />
+                  </div>
+                  <div className="field">
+                    <label>Hari Kerja / Bulan</label>
+                    <NumInput value={workDays} onChange={setWorkDays} suffix="hari" />
+                  </div>
+                  <div className="field">
+                    <label>Margin / Markup</label>
+                    <NumInput value={hplcSet.markup} onChange={v => updHplc('markup', v)} suffix="%" />
+                  </div>
+                  <div className="sep" />
+                  <div className="comp">
+                    <span className="cl">Test / Hari</span>
+                    <span className="cv">{hplcD > 0 ? fmt(hplcD) : '—'}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Total Test KSO</span>
+                    <span className="cv">{hplcTotTest > 0 ? fmt(hplcTotTest) : '—'}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">CAPEX / Test</span>
+                    <span className="cv" style={{ color: 'var(--red)' }}>{rp(hplcCapPt)}</span>
+                  </div>
+                  <div className="comp">
+                    <span className="cl">Reagen / Test</span>
+                    <span className="cv">{rp(hplcTotR)}</span>
+                  </div>
+                  {hplcCtrlOh > 0 && (
+                    <div className="comp">
+                      <span className="cl">Kontrol+Cal / Test</span>
+                      <span className="cv" style={{ color: 'var(--amber)' }}>{rp(hplcCtrlOh)}</span>
+                    </div>
+                  )}
+                  <div className="comp strong">
+                    <span className="cl">Harga Jual / Test</span>
+                    <span className="cv">{rp(hplcSell)}</span>
+                  </div>
+                  <div className="sep" style={{ marginTop: 12 }} />
+                  <button className="goto-btn" onClick={() => setPage('result')}>
+                    Lihat Hasil Perhitungan ▶
+                  </button>
+                </div>
+
+                {/* Harga Reagen */}
+                <div className="inp-card inp-card-reagent">
+                  <div className="inp-card-title">HARGA REAGEN (PRICELIST)</div>
+                  <div className="rp-list">
+                    {HPLC.AH600PRO.reagents.map(r => {
+                      const obj  = hplcRp[r.id] || { price: r.dp, disc: 0 };
+                      const nett = obj.price * (1 - obj.disc / 100);
+                      return (
+                        <div key={r.id} className="rp-item">
+                          <div className="rp-name" title={r.fn}>{r.fn}</div>
+                          <div className="rp-pack">{r.pack}</div>
+                          <div className="rp-row2">
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Harga Pricelist / Kit</label>
+                              <NumInput value={obj.price} onChange={v => updHplcRp(r.id, 'price', v)} prefix="Rp" />
+                            </div>
+                            <div className="field" style={{ margin: 0 }}>
+                              <label>Diskon</label>
+                              <NumInput value={obj.disc} onChange={v => updHplcRp(r.id, 'disc', v)} suffix="%" />
+                            </div>
+                          </div>
+                          <div className="rp-nett">Nett: <span>{rp(nett)}</span></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Kontrol & Kalibrator */}
+                  <div className="sep" style={{ margin: '10px 0' }} />
+                  <div className="inp-card-title" style={{ marginBottom: 8 }}>KONTROL &amp; KALIBRATOR</div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                    {['free', 'beli'].map(opt => {
+                      const active = (opt === 'free') === hplcCtrl.free;
+                      return (
+                        <button key={opt}
+                          className={`merk-pill${active ? ' merk-active' : ''}`}
+                          style={active ? { borderColor: CAT_COLORS.hplc, color: CAT_COLORS.hplc } : {}}
+                          onClick={() => updHplcCtrl('free', opt === 'free')}>
+                          {opt === 'free' ? 'Free (Overhead)' : 'Beli (Pricelist)'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="rp-list">
+                    <div className="rp-item">
+                      <div className="rp-name">HbA1c Calibrator Set</div>
+                      <div className="rp-pack">1 mL×2 vial/set</div>
+                      <div className="rp-row2">
+                        <div className="field" style={{ margin: 0 }}>
+                          <label>Harga Beli</label>
+                          <NumInput value={hplcCtrl.cal.price} onChange={v => updHplcCtrlCal('price', v)} prefix="Rp" />
+                        </div>
+                        <div className="field" style={{ margin: 0 }}>
+                          <label>Diskon</label>
+                          <NumInput value={hplcCtrl.cal.disc} onChange={v => updHplcCtrlCal('disc', v)} suffix="%" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rp-item">
+                      <div className="rp-name">HbA1c Control</div>
+                      <div className="rp-pack">0.5 mL×2 vial/set</div>
+                      <div className="rp-row2">
+                        <div className="field" style={{ margin: 0 }}>
+                          <label>Harga Beli</label>
+                          <NumInput value={hplcCtrl.ctrl.price} onChange={v => updHplcCtrlCtrl('price', v)} prefix="Rp" />
+                        </div>
+                        <div className="field" style={{ margin: 0 }}>
+                          <label>Diskon</label>
+                          <NumInput value={hplcCtrl.ctrl.disc} onChange={v => updHplcCtrlCtrl('disc', v)} suffix="%" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {hplcRes && hplcD > 0 && (
+                    <div style={{ borderTop: '2px solid var(--bdr)', marginTop: 10, paddingTop: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-3)', letterSpacing: '0.5px', marginBottom: 6 }}>
+                        RUNNING COST SUMMARY
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                        <span style={{ color: 'var(--text-2)' }}>Total Reagen / Test</span>
+                        <span style={{ fontWeight: 600 }}>{rp(hplcTotR)}</span>
+                      </div>
+                      {hplcCtrlOh > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
+                          <span style={{ color: 'var(--text-2)' }}>Kontrol + Cal / Test</span>
+                          <span style={{ fontWeight: 600, color: 'var(--amber)' }}>{rp(hplcCtrlOh)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+                        <span style={{ color: 'var(--text-2)' }}>+ CAPEX / Test</span>
+                        <span style={{ fontWeight: 600, color: 'var(--red)' }}>{rp(hplcCapPt)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, borderTop: '1px solid var(--bdr)', paddingTop: 6 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--blue)' }}>Cost / Test KSO CPRR</span>
+                        <span style={{ fontWeight: 900, color: 'var(--blue)', fontSize: 16 }}>{rp(hplcSell)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
         </div>
       </div>
 
@@ -2327,7 +2703,7 @@ export default function Dashboard() {
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
-          ) : (
+          ) : tab === 'clia' ? (
             <CLIAResultTable
               cliaType={cliaType}
               cliaCapPt={cliaCapPt}
@@ -2345,6 +2721,20 @@ export default function Dashboard() {
               qcFree={cliaIsFree}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
+          ) : (
+            <HPLCResult
+              hplcRes={hplcRes}
+              hplcCapPt={hplcCapPt}
+              hplcTotTest={hplcTotTest}
+              hplcSet={hplcSet}
+              hplcD={hplcD}
+              hplcRp={hplcRp}
+              hplcCtrlOh={hplcCtrlOh}
+              hplcSell={hplcSell}
+              totCap={hplcCapex}
+              workDays={workDays}
+              salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+            />
           )}
         </div>
       </div>
@@ -2358,6 +2748,7 @@ export default function Dashboard() {
           { key: 'cc',     label: 'CC',     color: CAT_COLORS.cc },
           { key: 'xm',     label: 'XM',     color: CAT_COLORS.xm },
           { key: 'clia',   label: 'CLIA',   color: CAT_COLORS.clia },
+          { key: 'hplc',   label: 'HPLC',   color: CAT_COLORS.hplc },
         ].map(({ key, label, color }) => (
           <button
             key={key}
