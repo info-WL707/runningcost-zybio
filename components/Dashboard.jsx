@@ -1826,7 +1826,7 @@ export default function Dashboard() {
   const hplcTotR     = hplcRes ? hplcRes.total : 0;
   const hplcCalNett  = hplcCtrl.cal.price  * (1 - hplcCtrl.cal.disc  / 100);
   const hplcCtrlNett = hplcCtrl.ctrl.price * (1 - hplcCtrl.ctrl.disc / 100);
-  const hplcCtrlOh   = (!hplcCtrl.free && hplcSet.tests > 0 && workDays > 0)
+  const hplcCtrlOh   = (hplcCtrl.free && hplcSet.tests > 0 && workDays > 0)
     ? (hplcCalNett * (workDays / 5) * 0.5 + hplcCtrlNett * workDays * 0.0392) / hplcSet.tests
     : 0;
   const hplcBase     = hplcCapPt + hplcTotR + hplcCtrlOh;
