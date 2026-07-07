@@ -624,7 +624,7 @@ function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, e
 
 // ─── BgResult ────────────────────────────────────────────────────────────────
 
-function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, bgHppKso, bgHppCprr, bgCartNett, bgQcOh, bgQcNett, bgFixedPt, bgCapPt, bgMaintPt, bgBase, bgSell, bgTotTest, bgD, bgCtrl, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
+function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, bgHppKso, bgHppCprr, bgCartNett, bgQcOh, bgQcNett, bgCapPt, bgBase, bgSell, bgTotTest, bgD, bgCtrl, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
   const isCprr   = bgMode === 'cprr';
   const hpp      = isCprr ? bgHppCprr : bgHppKso;
   const hppBase  = bgKitCap > 0 ? bgCartNett / bgKitCap : 0;
@@ -636,7 +636,7 @@ function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, b
     exportBloodGas({
       bgMode, totCap, kso: bgSet.kso, testsPerMonth: bgSet.tests,
       workDays: workDays || 25, markup: bgSet.markup,
-      qcFree: bgCtrl.free, capPt: bgCapPt, maintPt: bgMaintPt,
+      qcFree: bgCtrl.free, capPt: bgCapPt,
       hpp, hppBase, hppResidu,
       qcOh: bgQcOh, base: bgBase, sell: bgSell, totTest: bgTotTest,
       cartFn: curCart.fn, cartPack: curCart.pack, cartNett: bgCartNett,
@@ -650,7 +650,7 @@ function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, b
     printBloodGas({
       bgMode, totCap, kso: bgSet.kso, testsPerMonth: bgSet.tests,
       workDays: workDays || 25, markup: bgSet.markup,
-      qcFree: bgCtrl.free, capPt: bgCapPt, maintPt: bgMaintPt,
+      qcFree: bgCtrl.free, capPt: bgCapPt,
       hpp, hppBase, hppResidu,
       qcOh: bgQcOh, base: bgBase, sell: bgSell, totTest: bgTotTest,
       cartFn: curCart.fn, cartPack: curCart.pack,
@@ -679,7 +679,7 @@ function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, b
           </div>
         </div>
         <div className="cprr-pills">
-          <span className="pill pl-cap">CAPEX+Maint/Test: {rp(bgFixedPt)}</span>
+          <span className="pill pl-cap">CAPEX/Test: {rp(bgCapPt)}</span>
           <span className="pill pl-rgn">HPP Cartridge/Test: {bgSet.tests > 0 ? rp(hpp) : '—'}</span>
           {bgQcOh > 0 && <span className="pill pl-qc">QC/Test: {rp(bgQcOh)}</span>}
           <span className="pill pl-base">Base Cost: {bgSet.tests > 0 ? rp(bgBase) : '—'}</span>
@@ -729,15 +729,6 @@ function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, b
                   {isCprr ? `Nett ÷ ${fmt(Math.round(bgReal21d))} real test` : `Nett ÷ ${bgKitCap} (kit cap)`}
                 </td>
               </tr>
-              {bgMaintPt > 0 && (
-                <tr>
-                  <td style={{ fontWeight: 600 }}>Beban Pemeliharaan</td>
-                  <td className="cpt">{fmt(bgMaintPt)}</td>
-                  <td className="mob-hide" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                    Rp {fmt(bgSet.maintenance)}/bln ÷ {fmt(bgSet.tests)} test/bln
-                  </td>
-                </tr>
-              )}
               {bgQcOh > 0 && (
                 <tr className="tr-ctrl">
                   <td>QC / Test (Free)</td>
@@ -3283,10 +3274,6 @@ export default function Dashboard() {
                     <label>LIS</label>
                     <NumInput value={bgLis} onChange={v => setBgLis(v)} prefix="Rp" />
                   </div>
-                  <div className="field">
-                    <label>Pemeliharaan / Bulan</label>
-                    <NumInput value={bgSet.maintenance} onChange={v => updBg('maintenance', v)} prefix="Rp" />
-                  </div>
                   <div className="comp strong">
                     <span className="cl">Total CAPEX</span>
                     <span className="cv">{rp(bgCapex)}</span>
@@ -3463,12 +3450,6 @@ export default function Dashboard() {
                         <span style={{ color: 'var(--text-2)' }}>HPP Cartridge / Test</span>
                         <span style={{ fontWeight: 600 }}>{rp(bgHppPerTest)}</span>
                       </div>
-                      {bgMaintPt > 0 && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
-                          <span style={{ color: 'var(--text-2)' }}>Pemeliharaan / Test</span>
-                          <span style={{ fontWeight: 600 }}>{rp(bgMaintPt)}</span>
-                        </div>
-                      )}
                       {bgQcOh > 0 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
                           <span style={{ color: 'var(--text-2)' }}>QC / Test</span>
@@ -3614,9 +3595,7 @@ export default function Dashboard() {
               bgCartNett={bgCartNett}
               bgQcOh={bgQcOh}
               bgQcNett={bgQcNett}
-              bgFixedPt={bgFixedPt}
               bgCapPt={bgCapPt}
-              bgMaintPt={bgMaintPt}
               bgBase={bgBase}
               bgSell={bgSell}
               bgTotTest={bgTotTest}
