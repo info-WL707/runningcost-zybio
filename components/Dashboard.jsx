@@ -444,7 +444,7 @@ function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, h
                 <td colSpan={2} style={{ color: 'var(--red)' }}>
                   + CAPEX / Test&nbsp;
                   <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
-                    (Alat ÷ {fmt(hplcTotTest)} test KSO)
+                    (Alat + UPS + LIS ÷ {fmt(hplcTotTest)} test KSO)
                   </span>
                 </td>
                 <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(hplcCapPt)}</td>
@@ -751,7 +751,7 @@ function BgResult({ bgMode, bgSet, bgReal21d, bgResidue, bgKitCap, bgEffTests, b
                 <td style={{ color: 'var(--red)' }}>
                   + CAPEX / Test&nbsp;
                   <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--text-3)' }}>
-                    (Alat ÷ {fmt(bgTotTest)} test KSO)
+                    (Alat + UPS + LIS ÷ {fmt(bgTotTest)} test KSO)
                   </span>
                 </td>
                 <td className="r" style={{ fontWeight: 700, color: 'var(--red)' }}>{rp(bgCapPt)}</td>
@@ -2074,16 +2074,20 @@ export default function Dashboard() {
   const [hplcSet,    setHplcSet]    = useState({ price: HPLC.AH600PRO.dP, disc: 0, kso: HPLC.AH600PRO.dK, markup: HPLC.AH600PRO.dM, tests: HPLC.AH600PRO.dT });
   const [hplcRp,     setHplcRp]     = useState(initHplcRp);
   const [hplcCtrl,   setHplcCtrl]   = useState({ free: true, cal: { price: HPLC.AH600PRO.calPl, disc: 0 }, ctrl: { price: HPLC.AH600PRO.ctrlPl, disc: 0 } });
+  const [hplcUps,    setHplcUps]    = useState(0);
+  const [hplcLis,    setHplcLis]    = useState(0);
   const [elektroSet, setElektroSet] = useState({ price: ELEKTRO.DNX6.dP, disc: 0, kso: ELEKTRO.DNX6.dK, markup: ELEKTRO.DNX6.dM, tests: ELEKTRO.DNX6.dT, mode: 'cartridge' });
   const [elektroRp,  setElektroRp]  = useState(initElektroRp);
   const [elektroCtrl,setElektroCtrl]= useState({ free: true, qc1: { price: 948000, disc: 0 }, qc2: { price: 948000, disc: 0 }, qc3: { price: 948000, disc: 0 } });
   const [elektroUps,  setElektroUps]  = useState(0);
   const [elektroLis,  setElektroLis]  = useState(0);
   const [bgMode,     setBgMode]     = useState('cprr');
-  const [bgSet,      setBgSet]      = useState({ price: BLOODGAS.PT1000.dP, disc: 0, kso: BLOODGAS.PT1000.dK, markup: BLOODGAS.PT1000.dM, tests: BLOODGAS.PT1000.dT, cartKey: 'pt10_120', maintenance: BLOODGAS.PT1000.dMaint });
+  const [bgSet,      setBgSet]      = useState({ price: BLOODGAS.PT1000.dP, disc: 0, kso: 0, markup: 0, tests: 0, cartKey: 'pt10_120' });
   const [bgRpCart,   setBgRpCart]   = useState(() => Object.fromEntries(BLOODGAS.PT1000.cartridges.map(c => [c.id, { price: c.dp, disc: 0 }])));
   const [bgRpQc,     setBgRpQc]     = useState({ price: BLOODGAS.PT1000.qc.dp, disc: 0 });
   const [bgCtrl,     setBgCtrl]     = useState({ free: true, n_qc: 1 });
+  const [bgUps,      setBgUps]      = useState(0);
+  const [bgLis,      setBgLis]      = useState(0);
 
   // ── CAPEX ──
   const curSet  = (tab === 'hemato' ? hSet[hType] : cSet[cType]) || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 };
@@ -2142,7 +2146,8 @@ export default function Dashboard() {
   const cliaParamsNow = cliaParams[cliaType];
 
   // ── HPLC computed ──
-  const hplcCapex    = hplcSet.price * (1 - hplcSet.disc / 100);
+  const hplcANett    = hplcSet.price * (1 - hplcSet.disc / 100);
+  const hplcCapex    = hplcANett + hplcUps + hplcLis;
   const hplcTotTest  = hplcSet.kso * hplcSet.tests;
   const hplcCapPt    = hplcTotTest > 0 ? hplcCapex / hplcTotTest : 0;
   const hplcD        = workDays > 0 ? hplcSet.tests / workDays : 0;
@@ -2178,9 +2183,9 @@ export default function Dashboard() {
 
   // ── Blood Gas computed ──
   const bgANett    = bgSet.price * (1 - bgSet.disc / 100);
+  const bgCapex    = bgANett + bgUps + bgLis;
   const bgTotTest  = bgSet.kso * bgSet.tests;
-  const bgCapPt    = bgTotTest > 0 ? bgANett / bgTotTest : 0;
-  const bgMaintPt  = bgSet.tests > 0 ? bgSet.maintenance / bgSet.tests : 0;
+  const bgCapPt    = bgTotTest > 0 ? bgCapex / bgTotTest : 0;
   const bgD        = workDays > 0 ? bgSet.tests / workDays : 0;
   const bgReal21d  = bgSet.tests / 30 * BLOODGAS.PT1000.stability;
   const bgCurCart  = BLOODGAS.PT1000.cartridges.find(c => c.id === bgSet.cartKey) || BLOODGAS.PT1000.cartridges[1];
@@ -2194,8 +2199,7 @@ export default function Dashboard() {
   const bgHppPerTest = bgMode === 'kso' ? bgHppKso : bgHppCprr;
   const bgQcNett   = bgRpQc.price * (1 - bgRpQc.disc / 100);
   const bgQcOh     = bgCtrl.free && bgEffTests > 0 ? bgQcNett * bgCtrl.n_qc / bgEffTests : 0;
-  const bgFixedPt  = bgCapPt + bgMaintPt;
-  const bgBase     = bgFixedPt + bgHppPerTest + bgQcOh;
+  const bgBase     = bgCapPt + bgHppPerTest + (bgMode === 'cprr' ? bgQcOh : 0);
   const bgSell     = sellOf(bgBase, bgSet.markup);
 
   // ── Reagent nett maps (hemato) — nett = pricelist × (1 − disc) ──
@@ -2857,7 +2861,15 @@ export default function Dashboard() {
                   </div>
                   <div className="comp">
                     <span className="cl">Nett Analyzer</span>
-                    <span className="cv">{rp(hplcCapex)}</span>
+                    <span className="cv">{rp(hplcANett)}</span>
+                  </div>
+                  <div className="field">
+                    <label>UPS</label>
+                    <NumInput value={hplcUps} onChange={v => setHplcUps(v)} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>LIS</label>
+                    <NumInput value={hplcLis} onChange={v => setHplcLis(v)} prefix="Rp" />
                   </div>
                   <div className="comp strong">
                     <span className="cl">Total CAPEX</span>
@@ -3264,12 +3276,20 @@ export default function Dashboard() {
                     <span className="cv">{rp(bgANett)}</span>
                   </div>
                   <div className="field">
+                    <label>UPS</label>
+                    <NumInput value={bgUps} onChange={v => setBgUps(v)} prefix="Rp" />
+                  </div>
+                  <div className="field">
+                    <label>LIS</label>
+                    <NumInput value={bgLis} onChange={v => setBgLis(v)} prefix="Rp" />
+                  </div>
+                  <div className="field">
                     <label>Pemeliharaan / Bulan</label>
                     <NumInput value={bgSet.maintenance} onChange={v => updBg('maintenance', v)} prefix="Rp" />
                   </div>
                   <div className="comp strong">
-                    <span className="cl">Total CAPEX Alat</span>
-                    <span className="cv">{rp(bgANett)}</span>
+                    <span className="cl">Total CAPEX</span>
+                    <span className="cv">{rp(bgCapex)}</span>
                   </div>
                 </div>
 
@@ -3602,7 +3622,7 @@ export default function Dashboard() {
               bgTotTest={bgTotTest}
               bgD={bgD}
               bgCtrl={bgCtrl}
-              totCap={bgANett}
+              totCap={bgCapex}
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
             />
