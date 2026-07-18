@@ -139,7 +139,7 @@ function MerkPill({ label, color, active, onClick, sub }) {
 
 // ─── HematoResult (Page 2) ────────────────────────────────────────────────────
 
-function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl, exzMode, onExzModeChange, workDays, testsPerMonth, qcFree, salesName, faskesName, kotaKab, kompetitor, backupLabel }) {
+function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap, totTest, kso, ctrl, exzMode, onExzModeChange, workDays, testsPerMonth, qcFree, salesName, faskesName, kotaKab, kompetitor, backupLabel, capexBreakdown }) {
   const rows0 = data.reagents.map(r => {
     const obj         = hRpData[r.id] || { price: 0, disc: 0 };
     const nettKit     = obj.price * (1 - obj.disc / 100);
@@ -179,6 +179,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
       sell,
       totTest,
       reagentRows: rows,
+      capexBreakdown,
       salesName: salesName || '',
       faskesName: faskesName || '',
       kotaKab: kotaKab || '',
@@ -202,6 +203,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
       sell,
       totTest,
       reagentRows: rows,
+      capexBreakdown,
       salesName: salesName || '',
       faskesName: faskesName || '',
       kotaKab: kotaKab || '',
@@ -321,7 +323,7 @@ function HematoResult({ data, hRes, capPt, markup, D, modeLabel, hRpData, totCap
 
 // ─── HPLCResult ───────────────────────────────────────────────────────────────
 
-function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, hplcCtrlOh, hplcSell, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
+function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, hplcCtrlOh, hplcSell, totCap, workDays, salesName, faskesName, kotaKab, kompetitor, capexBreakdown }) {
   const totR  = hplcRes ? hplcRes.total : 0;
   const base  = hplcCapPt + totR + (hplcCtrlOh || 0);
   const markup_amt = hplcSell - base;
@@ -355,6 +357,7 @@ function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, h
       sell: hplcSell,
       totTest: hplcTotTest,
       reagentRows: rows,
+      capexBreakdown,
       salesName: salesName || '', faskesName: faskesName || '',
       kotaKab: kotaKab || '', kompetitor: kompetitor || '',
     });
@@ -374,6 +377,7 @@ function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, h
       sell: hplcSell,
       totTest: hplcTotTest,
       reagentRows: rows,
+      capexBreakdown,
       salesName: salesName || '', faskesName: faskesName || '',
       kotaKab: kotaKab || '', kompetitor: kompetitor || '',
     });
@@ -475,7 +479,7 @@ function HPLCResult({ hplcRes, hplcCapPt, hplcTotTest, hplcSet, hplcD, hplcRp, h
 
 // ─── ElektroResult ───────────────────────────────────────────────────────────
 
-function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, elektroD, elektroRp, elektroQcOh, elektroSell, totCap, workDays, salesName, faskesName, kotaKab, kompetitor }) {
+function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, elektroD, elektroRp, elektroQcOh, elektroSell, totCap, workDays, salesName, faskesName, kotaKab, kompetitor, capexBreakdown }) {
   const totR = elektroRes ? elektroRes.cpt : 0;
   const base = elektroCapPt + totR + (elektroQcOh || 0);
   const markup_amt = elektroSell - base;
@@ -504,6 +508,7 @@ function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, e
       reagentRows,
       runDays: elektroRes ? elektroRes.runDays : 0,
       testsPerPack,
+      capexBreakdown,
       salesName: salesName || '', faskesName: faskesName || '',
       kotaKab: kotaKab || '', kompetitor: kompetitor || '',
     });
@@ -519,6 +524,7 @@ function ElektroResult({ elektroRes, elektroCapPt, elektroTotTest, elektroSet, e
       reagentRows,
       runDays: elektroRes ? elektroRes.runDays : 0,
       testsPerPack,
+      capexBreakdown,
       salesName: salesName || '', faskesName: faskesName || '',
       kotaKab: kotaKab || '', kompetitor: kompetitor || '',
     });
@@ -2079,6 +2085,7 @@ export default function Dashboard() {
   const [bgCtrl,     setBgCtrl]     = useState({ free: true, n_qc: 1 });
   const [bgUps,      setBgUps]      = useState(0);
   const [bgLis,      setBgLis]      = useState(0);
+  const [ccParamTpm, setCcParamTpm] = useState({});
 
   // ── CAPEX ──
   const curSet  = (tab === 'hemato' ? hSet[hType] : cSet[cType]) || { price: 0, disc: 0, kso: 0, markup: 0, tests: 0, batch: 0 };
@@ -2239,6 +2246,7 @@ export default function Dashboard() {
 
   const updCCParam = (id, field, value) =>
     setCCParams(ps => ps.map(p => p.id === id ? { ...p, [field]: value } : p));
+  const updCcParamTpm = (id, val) => setCcParamTpm(p => ({ ...p, [id]: val }));
   const addCCParam = (data) =>
     setCCParams(ps => [...ps, { ...data, id: `custom_${ps.length + 1}`, custom: true }]);
   const delCCParam = (id) =>
@@ -3501,6 +3509,7 @@ export default function Dashboard() {
               qcFree={hType === 'EXZ8000' ? exzCtrl.free : (hCtrl[hType]?.free ?? true)}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
               backupLabel={backupOn ? (HEMATO[backupKey]?.diff ? `${HEMATO[backupKey].label} (${HEMATO[backupKey].diff})` : HEMATO[backupKey]?.label || backupKey) : ''}
+              capexBreakdown={{ alat: aNett, backup: bNett, ups, lis }}
             />
           ) : tab === 'cc' ? (
               <CCResultTable
@@ -3520,6 +3529,9 @@ export default function Dashboard() {
                 totCap={totCap}
                 salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
                 backupLabel={backupOn ? (CC[backupKey]?.label || backupKey) : ''}
+                capexBreakdown={{ alat: aNett, backup: bNett, ups, lis }}
+                ccParamTpm={ccParamTpm}
+                updCcParamTpm={updCcParamTpm}
               />
           ) : tab === 'xm' ? (
             <CrossmatchResult
@@ -3535,6 +3547,7 @@ export default function Dashboard() {
               totCap={xmCapex}
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+              capexBreakdown={{ alat: xmANett, backup: 0, ups: xmUps, lis: xmLis }}
             />
           ) : tab === 'clia' ? (
             <CLIAResultTable
@@ -3553,6 +3566,7 @@ export default function Dashboard() {
               workDays={workDays}
               qcFree={cliaIsFree}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+              capexBreakdown={{ alat: cliaANett, backup: 0, ups: cliaUps, lis: cliaLis }}
             />
           ) : tab === 'hplc' ? (
             <HPLCResult
@@ -3567,6 +3581,7 @@ export default function Dashboard() {
               totCap={hplcCapex}
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+              capexBreakdown={{ alat: hplcANett, backup: 0, ups: hplcUps, lis: hplcLis }}
             />
           ) : tab === 'elektro' ? (
             <ElektroResult
@@ -3581,6 +3596,7 @@ export default function Dashboard() {
               totCap={elektroCapex}
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+              capexBreakdown={{ alat: elektroANett, backup: 0, ups: elektroUps, lis: elektroLis }}
             />
           ) : (
             <BgResult
@@ -3604,6 +3620,7 @@ export default function Dashboard() {
               totCap={bgCapex}
               workDays={workDays}
               salesName={salesName} faskesName={faskesName} kotaKab={kotaKab} kompetitor={kompetitor}
+              capexBreakdown={{ alat: bgANett, backup: 0, ups: bgUps, lis: bgLis }}
             />
           )}
         </div>
